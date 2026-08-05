@@ -20,8 +20,6 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             source "$NVM_DIR/nvm.sh"
 
-            export PATH="$PATH:$HOME/.nvm/versions/node/$(node -v)/bin"
-
             cd ~/notes-api
 
             git pull
