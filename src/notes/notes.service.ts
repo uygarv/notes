@@ -53,9 +53,11 @@ export class NotesService {
     return await this.prisma.note.create({
         data: {
             ...noteData,
-            tags: {
-                connect: tags.map((id) => ({id}))
-            }
+            ...(tags && {
+                tags: {
+                    connect: tags.map((id) => ({id}))
+                }
+            })
         }
     });
   }

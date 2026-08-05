@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsString, IsArray } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsArray, IsOptional } from 'class-validator';
 
 export class CreateNoteDto {
     @IsNotEmpty()
@@ -9,7 +9,8 @@ export class CreateNoteDto {
     @IsString()
     content!: string;
 
+    @IsOptional()
     @IsArray()
     @IsInt({ each: true })
-    tags!: number[];
+    tags?: number[];
 }
