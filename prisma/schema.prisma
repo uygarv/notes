@@ -1,0 +1,26 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  tags Tag[]
+}
+
+model Tag {
+  id Int @id @default(autoincrement())
+  name String @unique
+
+  notes Note[]
+}
