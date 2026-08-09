@@ -24,22 +24,19 @@ jobs:
 
             cd ~/notes-api
 
+            echo "==> Updating source code"
+            git fetch origin
+            git reset --hard origin/main
+
             echo "==> Checking disk space"
             df -h /
 
-            AVAILABLE=$(df --output=avail / | tail -1)
+            AVAILABLE=$(df --output=avail / | tail -1 | tr -d ' ')
 
             if [ "$AVAILABLE" -lt 2097152 ]; then
               echo "ERROR: Less than 2 GB of disk space available."
               exit 1
             fi
-
-            echo "==> Updating source code"
-            git fetch origin
-            git reset --hard origin/main
-
-            echo "==> Cleaning npm cache"
-            npm cache clean --force || true
 
             echo "==> Installing dependencies"
             npm ci
@@ -50,18 +47,30 @@ jobs:
             echo "==> Running database migrations"
             npx prisma migrate deploy
 
+            echo "==> Cleaning previous build"
+            rm -rf dist
+
             echo "==> Building application"
             NODE_OPTIONS="--max-old-space-size=768" npm run build
 
             echo "==> Verifying build"
-            test -f dist/src/main.js
+            if [ ! -f dist/src/main.js ]; then
+              echo "ERROR: dist/src/main.js was not generated."
+              exit 1
+            fi
 
             echo "==> Restarting application"
             pm2 restart notes-api --update-env
 
+            echo "==> Waiting for application"
+            sleep 3
+
             echo "==> Checking application status"
-            sleep 2
-            pm2 status
+            if ! pm2 describe notes-api | grep -q "status.*online"; then
+              echo "ERROR: PM2 application is not online."
+              pm2 logs notes-api --err --lines 30 --nostream
+              exit 1
+            fi
 
             echo "==> Checking port 3000"
             if ! ss -lnt | grep -q ':3000 '; then
@@ -69,6 +78,9 @@ jobs:
               pm2 logs notes-api --err --lines 30 --nostream
               exit 1
             fi
+
+            echo "==> Cleaning npm cache"
+            npm cache clean --force || true
 
             echo "==> Deployment successful"
             df -h /
