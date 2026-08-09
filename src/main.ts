@@ -14,7 +14,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('Notes API')
     .setDescription('REST API for managing notes with tags')
-    .setVersion('1.0')
+    .setVersion('1.1')
     .addServer('/v1')
     .build();
 

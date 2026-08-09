@@ -17,14 +17,44 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
+
             export NVM_DIR="$HOME/.nvm"
             source "$NVM_DIR/nvm.sh"
 
             cd ~/notes-api
 
-            git pull
-            npm install
+            echo "==> Checking disk space"
+            df -h /
+
+            AVAILABLE=$(df --output=avail / | tail -1)
+
+            if [ "$AVAILABLE" -lt 2097152 ]; then
+              echo "ERROR: Less than 2 GB of disk space available."
+              exit 1
+            fi
+
+            echo "==> Updating source code"
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "==> Installing dependencies"
+            npm ci
+
+            echo "==> Generating Prisma client"
             npx prisma generate
+
+            echo "==> Running database migrations"
             npx prisma migrate deploy
+
+            echo "==> Building application"
             npm run build
+
+            echo "==> Restarting application"
             pm2 restart notes-api
+
+            echo "==> Cleaning npm cache"
+            npm cache clean --force
+
+            echo "==> Deployment successful"
+            df -h /

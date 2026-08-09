@@ -13,7 +13,7 @@ export class GitHubStrategy
             clientID: process.env.GITHUB_CLIENT_ID!,
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
             callbackURL:
-                'http://127.0.0.1:3000/auth/github/callback',
+                `${process.env.APP_URL}/auth/github/callback`,
             scope: ['user:email'],
         });
     }
