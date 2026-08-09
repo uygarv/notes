@@ -9,35 +9,44 @@ export class TagsService {
     private prisma: PrismaService,
   ) {}
 
-  create(createTagDto: CreateTagDto) {
+  create(createTagDto: CreateTagDto, userId: number) {
     return this.prisma.tag.create({
-      data: createTagDto,
-    })
+      data: {
+        ...createTagDto,
+        user: {
+          connect: {
+            id: userId,
+          },
+        },
+      },
+    });
   }
 
-  findAll() {
-    return this.prisma.tag.findMany();
+  findAll(userId: number) {
+    return this.prisma.tag.findMany({
+      where: { userId }
+    });
   }
 
-  findOne(id: number) {
+  findOne(id: number, userId: number) {
     return this.prisma.tag.findUnique({
-      where: { id },
+      where: { id, userId },
       include: {
         "notes": true
       }
     })
   }
 
-  update(id: number, updateTagDto: UpdateTagDto) {
+  update(id: number, updateTagDto: UpdateTagDto, userId: number) {
     return this.prisma.tag.update({
-      where: { id },
+      where: { id, userId },
       data: updateTagDto,
     })
   }
 
-  delete(id: number) {
+  delete(id: number, userId: number) {
     return this.prisma.tag.delete({
-      where: { id },
+      where: { id, userId },
     })
   }
 }

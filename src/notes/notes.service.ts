@@ -8,34 +8,37 @@ import { UpdateNoteDto } from './dto/update-note.dto';
 export class NotesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
+  findAll(userId: number) {
     return this.prisma.note.findMany({
+        where: {
+            userId
+        },
         include: {
             tags: true
         }
     });
   }
 
-  findOne(id: number) {
+  findOne(id: number, userId: number) {
     return this.prisma.note.findUnique({
-        where: { id },
+        where: { id, userId },
         include: {
             tags: true
         }
     })
   }
 
-  async delete(id: number) {
+  async delete(id: number, userId: number) {
     return await this.prisma.note.delete({
-        where: { id },
+        where: { id, userId },
     });
   }
 
-  async update (id: number, updateNoteDto: UpdateNoteDto) {
+  async update(id: number, updateNoteDto: UpdateNoteDto, userId: number) {
     const { tags, ...noteData } = updateNoteDto;
 
     return this.prisma.note.update({
-        where: { id },
+        where: { id, userId },
         data: {
             ...noteData,
             ...(tags && {
@@ -47,18 +50,48 @@ export class NotesService {
     });
   }
 
-  async create(createNoteDto: CreateNoteDto) {
+  async create(createNoteDto: CreateNoteDto, userId: number) {
     const { tags, ...noteData } = createNoteDto;
 
-    return await this.prisma.note.create({
+    if (tags?.length) {
+        const userTags = await this.prisma.tag.findMany({
+            where: {
+                id: {
+                    in: tags,
+                },
+                userId,
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        if (userTags.length !== tags.length) {
+            throw new BadRequestException(
+                'One or more tags not found.',
+            );
+        }
+    }
+
+    return this.prisma.note.create({
         data: {
             ...noteData,
-            ...(tags && {
+
+            user: {
+                connect: {
+                    id: userId,
+                },
+            },
+
+            ...(tags?.length && {
                 tags: {
-                    connect: tags.map((id) => ({id}))
-                }
-            })
-        }
+                    connect: tags.map((id) => ({ id })),
+                },
+            }),
+        },
+        include: {
+            tags: true
+        },
     });
-  }
+    }
 }

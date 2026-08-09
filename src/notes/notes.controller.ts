@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Post, Param, ParseIntPipe, NotFoundException, Delete, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, ParseIntPipe, NotFoundException, Delete, Patch, UseGuards, Request } from '@nestjs/common';
 import { NotesService } from './notes.service';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller({
     path: "notes",
     version: "1"
@@ -11,14 +14,14 @@ export class NotesController {
   constructor(private notesService: NotesService) {}
 
   @Get()
-  findAll() {
-    return this.notesService.findAll();
+  findAll(@CurrentUserId() userId: number) {
+    return this.notesService.findAll(userId);
   }
 
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    const note = await this.notesService.findOne(id);
+  async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUserId() userId: number) {
+    const note = await this.notesService.findOne(id, userId);
     if (!note) {
         throw new NotFoundException()
     }
@@ -26,17 +29,17 @@ export class NotesController {
   }
 
   @Delete(":id")
-  delete(@Param("id", ParseIntPipe) id: number) {
-    return this.notesService.delete(id)
+  delete(@Param("id", ParseIntPipe) id: number, @CurrentUserId() userId: number) {
+    return this.notesService.delete(id, userId)
   }
 
   @Patch(":id")
-  update(@Param("id", ParseIntPipe) id: number, @Body() updateNoteDto: UpdateNoteDto) {
-    return this.notesService.update(id, updateNoteDto);
+  update(@Param("id", ParseIntPipe) id: number, @Body() updateNoteDto: UpdateNoteDto, @CurrentUserId() userId: number) {
+    return this.notesService.update(id, updateNoteDto, userId);
   }
 
   @Post()
-  create(@Body() createNoteDto: CreateNoteDto) {
-    return this.notesService.create(createNoteDto);
+  create(@Body() createNoteDto: CreateNoteDto, @CurrentUserId() userId: number) {
+    return this.notesService.create(createNoteDto, userId);
   }
 }

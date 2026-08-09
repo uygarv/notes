@@ -15,12 +15,40 @@ model Note {
   content   String
   createdAt DateTime @default(now())
 
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   tags Tag[]
 }
 
 model Tag {
-  id Int @id @default(autoincrement())
-  name String @unique
+  id     Int @id @default(autoincrement())
+  name   String @unique
 
-  notes Note[]
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notes  Note[]
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  email      String     @unique
+  password   String?
+  createdAt  DateTime   @default(now())
+
+  identities Identity[]
+  notes      Note[]
+  tags       Tag[]
+}
+
+model Identity {
+  id         Int    @id @default(autoincrement())
+  provider   String
+  providerId String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
 }
