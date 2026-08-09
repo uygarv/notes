@@ -38,6 +38,9 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
+            echo "==> Cleaning npm cache"
+            npm cache clean --force || true
+
             echo "==> Installing dependencies"
             npm ci
 
@@ -48,13 +51,24 @@ jobs:
             npx prisma migrate deploy
 
             echo "==> Building application"
-            npm run build
+            NODE_OPTIONS="--max-old-space-size=768" npm run build
+
+            echo "==> Verifying build"
+            test -f dist/src/main.js
 
             echo "==> Restarting application"
-            pm2 restart notes-api
+            pm2 restart notes-api --update-env
 
-            echo "==> Cleaning npm cache"
-            npm cache clean --force
+            echo "==> Checking application status"
+            sleep 2
+            pm2 status
+
+            echo "==> Checking port 3000"
+            if ! ss -lnt | grep -q ':3000 '; then
+              echo "ERROR: Application is not listening on port 3000."
+              pm2 logs notes-api --err --lines 30 --nostream
+              exit 1
+            fi
 
             echo "==> Deployment successful"
             df -h /
