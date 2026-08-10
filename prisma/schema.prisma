@@ -37,6 +37,8 @@ model User {
   password   String?
   createdAt  DateTime   @default(now())
 
+  username   String?    @unique
+
   identities Identity[]
   notes      Note[]
   tags       Tag[]

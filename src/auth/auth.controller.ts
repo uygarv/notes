@@ -6,8 +6,10 @@ import {
   Request,
   Body,
   Query,
+  Patch,
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from "./auth.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { OAuthProvider, OAuthStateType } from "src/constants";
@@ -15,6 +17,8 @@ import { OAuthStateService } from "src/auth/oauth-state.service";
 
 import { OAuthService } from "src/auth/oauth.service";
 import { OAuthGuard } from "./guards/oauth.guard";
+
+import { ApiBody } from "@nestjs/swagger";
 
 @Controller({
     path: "auth",
@@ -27,6 +31,22 @@ export class AuthController {
     ) {}
 
     @UseGuards(AuthGuard("local"))
+    @ApiBody({
+    schema: {
+        type: 'object',
+        properties: {
+            email: {
+                type: 'string',
+                example: 'user@example.com',
+            },
+            password: {
+                type: 'string',
+                example: 'password123',
+            },
+        },
+        required: ['email', 'password'],
+    },
+    })
     @Post("login")
     async login(@Request() req) {
         return this.authService.login(req.user);
@@ -56,6 +76,7 @@ export class AuthController {
 
     @Get('google/link')
     @UseGuards(AuthGuard("jwt"), OAuthGuard('google', OAuthProvider.GOOGLE, OAuthStateType.LINK))
+    @ApiBearerAuth()
     async googleLink() {}
 
     @Get("github")
@@ -77,11 +98,6 @@ export class AuthController {
 
     @Get('github/link')
     @UseGuards(AuthGuard("jwt"), OAuthGuard('github', OAuthProvider.GITHUB, OAuthStateType.LINK))
+    @ApiBearerAuth()
     async githubLink() {}
-
-    @UseGuards(AuthGuard("jwt"))
-    @Get("me")
-    getProfile(@Request() req) {
-        return req.user;
-    }
 }

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from "@nestjs/jwt";
 import { UsersService } from "../users/users.service";
 import { OAuthProfile } from './interfaces/oauth-profile.interface';
@@ -13,8 +13,7 @@ export class AuthService {
   async validateUser(email: string, password: string) {
     const user = await this.usersService.validateCredentials(email, password);
     if (!user) throw new UnauthorizedException();
-    const { password: _, ...result } = user;
-    return result;
+    return user;
   }
 
   async login(user: { id: number; email: string }) {
@@ -25,13 +24,12 @@ export class AuthService {
   }
 
   async createUser(email: string, password: string) {
-    const existingUser = await this.usersService.findByEmail(email);
-    if (existingUser) {
-      throw new UnauthorizedException("User already exists");
+    const exists = await this.usersService.userExistsByEmail(email);
+    if (exists) {
+      throw new ConflictException("User already exists");
     }
     const user = await this.usersService.create(email, password);
-    const { password: _, ...result } = user;
-    return result;
+    return user;
   }
 
   async validateOAuthUser(profile: OAuthProfile) {
@@ -44,13 +42,13 @@ export class AuthService {
         return identity.user;
     }
 
-    const existingUser = await this.usersService.findByEmail(
+    const exists = await this.usersService.userExistsByEmail(
         profile.email,
     );
 
-    if (existingUser) {
-        throw new UnauthorizedException(
-          `An account with this email already exists. Please sign in with your existing method first, then connect ${profile.provider}.`,
+    if (exists) {
+        throw new ConflictException(
+          `An account with this email already exists. Please sign in with your existing method first, then link this provider.`,
         );
     }
 

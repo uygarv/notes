@@ -15,12 +15,12 @@ async function bootstrap() {
     .setTitle('Notes API')
     .setDescription('REST API for managing notes with tags')
     .setVersion('1.1')
-    .addServer('/v1')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
 
-  SwaggerModule.setup('v1/docs', app, document);
+  SwaggerModule.setup('docs', app, document);
 
   app.useGlobalPipes(
     new ValidationPipe({

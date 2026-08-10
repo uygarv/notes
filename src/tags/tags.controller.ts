@@ -4,8 +4,10 @@ import { CreateTagDto } from './dto/create-tag.dto';
 import { UpdateTagDto } from './dto/update-tag.dto';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 
 @UseGuards(AuthGuard("jwt"))
+@ApiBearerAuth()
 @Controller({
   path: "tags",
   version: "1"
@@ -35,6 +37,13 @@ export class TagsController {
   }
 
   @Patch(":id")
+  @ApiBody({
+    schema: {
+      example: {
+        name: 'Updated name',
+      },
+    },
+  })
   async update(@Param("id", ParseIntPipe) id: number, @Body() updateTagDto: UpdateTagDto, @CurrentUserId() userId: number) {
     return this.tagsService.update(id, updateTagDto, userId)
   }

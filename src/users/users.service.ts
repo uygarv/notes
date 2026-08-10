@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { OAuthProfile } from 'src/auth/interfaces/oauth-profile.interface';
 import { OAuthProvider } from 'src/constants';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-
 
 
 @Injectable()
@@ -12,9 +12,30 @@ export class UsersService {
         private readonly prisma: PrismaService
     ) {}
 
-    async findByEmail(email: string) {
+    // private because exposes password
+    private async findByEmail(email: string) {
         return this.prisma.user.findUnique({
-            where: { email }
+            where: { email },
+        });
+    }
+
+    async userExistsByEmail(email: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+            },
+        });
+
+        return !!user;
+    }
+
+    async findById(userId: number) {
+        return this.prisma.user.findUnique({
+            where: { id: userId },
+            omit: {
+                password: true,
+            },
         });
     }
 
@@ -24,8 +45,31 @@ export class UsersService {
             data: {
                 email,
                 password: hash
-            }
+            },
+            omit: {
+                password: true,
+            },
         });
+    }
+
+    async updateUser(user: UpdateUserDto, userId: number) {
+        if (user.username) {
+            const existingUser = await this.prisma.user.findUnique({
+                where: { username: user.username },
+            });
+
+            if (existingUser && existingUser.id !== userId) {
+                throw new ConflictException('Username is already taken');
+            }
+        }
+
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: user,
+            omit: {
+                password: true,
+            },
+        })
     }
 
     async validateCredentials(email: string, password: string) {
@@ -40,7 +84,8 @@ export class UsersService {
             return null;
         }
 
-        return user;
+        const { password: _, ...result } = user;
+        return result;
     }
 
     async findByIdentity(provider: OAuthProvider, providerId: string) {
