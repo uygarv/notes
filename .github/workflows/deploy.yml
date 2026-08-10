@@ -42,25 +42,30 @@ jobs:
             npm ci
 
             echo "==> Generating Prisma client"
+            cd apps/api
             npx prisma generate
 
             echo "==> Running database migrations"
             npx prisma migrate deploy
 
+            cd ../..
+
             echo "==> Cleaning previous build"
-            rm -rf dist
+            rm -rf apps/api/dist
 
             echo "==> Building application"
-            NODE_OPTIONS="--max-old-space-size=768" npm run build
+            NODE_OPTIONS="--max-old-space-size=768" npm run build --workspace=apps/api
 
             echo "==> Verifying build"
-            if [ ! -f dist/src/main.js ]; then
-              echo "ERROR: dist/src/main.js was not generated."
+            if [ ! -f apps/api/dist/src/main.js ]; then
+              echo "ERROR: apps/api/dist/src/main.js was not generated."
               exit 1
             fi
 
             echo "==> Restarting application"
-            pm2 restart notes-api --update-env
+            pm2 delete notes-api || true
+            pm2 start apps/api/dist/src/main.js --name notes-api --update-env
+            pm2 save
 
             echo "==> Waiting for application"
             sleep 3
