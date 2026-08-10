@@ -22,7 +22,7 @@ jobs:
             export NVM_DIR="$HOME/.nvm"
             source "$NVM_DIR/nvm.sh"
 
-            cd ~/notes-api
+            cd ~/notes
 
             echo "==> Updating source code"
             git fetch origin
@@ -63,9 +63,7 @@ jobs:
             fi
 
             echo "==> Restarting application"
-            pm2 delete notes-api || true
-            pm2 start apps/api/dist/src/main.js --name notes-api --update-env
-            pm2 save
+            pm2 restart notes-api --update-env
 
             echo "==> Waiting for application"
             sleep 3
