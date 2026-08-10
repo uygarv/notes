@@ -18,6 +18,7 @@ export class CreateNoteDto {
 
     @ApiProperty({
         description: 'The tags associated with the note',
+        required: false,
     })
     @IsOptional()
     @IsArray()
