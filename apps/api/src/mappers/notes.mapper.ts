@@ -8,8 +8,10 @@ type NoteWithTags = Prisma.NoteGetPayload<{
 }>;
 
 export function toNoteResponse(note: NoteWithTags): Note {
+  const { userId: _, ...response } = note;
+
   return {
-    ...note,
+    ...response,
     createdAt: note.createdAt.toISOString(),
   };
 }

@@ -6,7 +6,6 @@ export const noteSchema = z.object({
   title: z.string(),
   content: z.string(),
   createdAt: z.string(),
-  userId: z.number(),
   tags: z.array(tagSchema),
 });
 

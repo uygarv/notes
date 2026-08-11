@@ -17,10 +17,9 @@ type TagWithNotesPayload = Prisma.TagGetPayload<{
 
 // converters for tags with no notes field
 export function toTagResponse(tag: TagPayload): Tag {
-  // no additional convertion is needed for now, returns the same
-  return {
-    ...tag,
-  };
+  const { userId: _, ...response } = tag;
+
+  return response;
 }
 export function toTagResponses(tags: TagPayload[]): Tag[] {
   return tags.map((tag) => toTagResponse(tag));

@@ -18,7 +18,7 @@ export class AppController {
       name: packageJson.name,
       version: packageJson.version,
       status: 'running',
-      documentation: `/v${API_VERSION}/docs`,
+      documentation: `/docs`,
       environment: process.env.NODE_ENV || 'development',
     };
   }
