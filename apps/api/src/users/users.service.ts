@@ -1,10 +1,10 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { OAuthProfile } from 'src/auth/interfaces/oauth-profile.interface';
 import { OAuthProvider } from 'src/constants';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 
+import { type UpdateUser } from '@notes/schemas';
 
 @Injectable()
 export class UsersService {
@@ -31,12 +31,18 @@ export class UsersService {
     }
 
     async findById(userId: number) {
-        return this.prisma.user.findUnique({
+        const user = await this.prisma.user.findUnique({
             where: { id: userId },
             omit: {
                 password: true,
             },
         });
+
+        if (!user) {
+            throw new UnauthorizedException();
+        }
+
+        return user
     }
 
     async create(email: string, password: string) {
@@ -52,7 +58,7 @@ export class UsersService {
         });
     }
 
-    async updateUser(user: UpdateUserDto, userId: number) {
+    async updateUser(user: UpdateUser, userId: number) {
         if (user.username) {
             const existingUser = await this.prisma.user.findUnique({
                 where: { username: user.username },

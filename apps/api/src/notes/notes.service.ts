@@ -4,6 +4,8 @@ import { CreateNoteDto } from './dto/create-note.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { UpdateNoteDto } from './dto/update-note.dto';
 
+import type { CreateNote, UpdateNote } from '@notes/schemas';
+
 @Injectable()
 export class NotesService {
   constructor(private prisma: PrismaService) {}
@@ -31,27 +33,33 @@ export class NotesService {
   async delete(id: number, userId: number) {
     return await this.prisma.note.delete({
         where: { id, userId },
+        include: {
+            tags: true,
+        },
     });
   }
 
-  async update(id: number, updateNoteDto: UpdateNoteDto, userId: number) {
-    const { tags, ...noteData } = updateNoteDto;
+  async update(id: number, updateNote: UpdateNote, userId: number) {
+    const { tags, ...noteData } = updateNote;
 
     return this.prisma.note.update({
         where: { id, userId },
         data: {
             ...noteData,
             ...(tags && {
-            tags: {
-                set: tags.map(id => ({ id })),
-            },
+                tags: {
+                    set: tags.map(id => ({ id })),
+                },
             }),
+        },
+        include: {
+            tags: true,
         },
     });
   }
 
-  async create(createNoteDto: CreateNoteDto, userId: number) {
-    const { tags, ...noteData } = createNoteDto;
+  async create(createNote: CreateNote, userId: number) {
+    const { tags, ...noteData } = createNote;
 
     if (tags?.length) {
         const userTags = await this.prisma.tag.findMany({

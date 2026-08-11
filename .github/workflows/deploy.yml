@@ -50,13 +50,32 @@ jobs:
 
             cd ../..
 
-            echo "==> Cleaning previous build"
+            echo "==> Cleaning previous builds"
+            rm -rf packages/*/dist
             rm -rf apps/api/dist
 
-            echo "==> Building application"
-            NODE_OPTIONS="--max-old-space-size=768" npm run build --workspace=apps/api
+            echo "==> Building shared schemas"
+            npm run build --workspace=@notes/schemas
 
-            echo "==> Verifying build"
+            echo "==> Verifying schemas build"
+            if [ ! -f packages/schemas/dist/index.js ]; then
+              echo "ERROR: packages/schemas/dist/index.js was not generated."
+              exit 1
+            fi
+
+            echo "==> Building shared contracts"
+            npm run build --workspace=@notes/contracts
+
+            echo "==> Verifying contracts build"
+            if [ ! -f packages/contracts/dist/index.js ]; then
+              echo "ERROR: packages/contracts/dist/index.js was not generated."
+              exit 1
+            fi
+
+            echo "==> Building API"
+            NODE_OPTIONS="--max-old-space-size=768" npm run build --workspace=notes-api
+
+            echo "==> Verifying API build"
             if [ ! -f apps/api/dist/src/main.js ]; then
               echo "ERROR: apps/api/dist/src/main.js was not generated."
               exit 1

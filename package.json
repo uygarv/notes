@@ -2,6 +2,10 @@
   "name": "notes",
   "private": true,
   "workspaces": [
-    "apps/*"
-  ]
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    
+  }
 }

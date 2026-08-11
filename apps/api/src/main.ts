@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { PrismaExceptionFilter } from './prisma/prisma-exception.filter'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ZodValidationPipe } from './common/pipes/zod-validation.pipe';
+import { TsRestValidationFilter } from './common/filters/ts-rest-validation.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -30,7 +32,8 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(
-    new PrismaExceptionFilter()
+    new PrismaExceptionFilter(),
+    new TsRestValidationFilter(),
   )
 
   await app.listen(process.env.PORT ?? 3000);

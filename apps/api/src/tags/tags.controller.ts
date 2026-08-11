@@ -1,55 +1,92 @@
-import { Controller, Get, Post, Body, Patch, Param, ParseIntPipe, NotFoundException, Delete, UseGuards } from '@nestjs/common';
-import { TagsService } from './tags.service';
-import { CreateTagDto } from './dto/create-tag.dto';
-import { UpdateTagDto } from './dto/update-tag.dto';
-import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { Controller, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 
-@UseGuards(AuthGuard("jwt"))
+import { tagsContract } from '@notes/contracts';
+
+import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
+import { TagsService } from './tags.service';
+
+import { toTagResponse, toTagResponses, toTagWithNotesResponse } from 'src/mappers/tags.mapper';
+
+@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
-@Controller({
-  path: "tags",
-  version: "1"
-})
+@Controller()
 export class TagsController {
-  constructor(private readonly tagsService: TagsService) {}
+  constructor(
+    private readonly tagsService: TagsService,
+  ) {}
 
-  @Post()
-  create(@Body() createTagDto: CreateTagDto, @CurrentUserId() userId: number) {
-    return this.tagsService.create(createTagDto, userId);
-  }
+  @TsRestHandler(tagsContract)
+  async handler( @CurrentUserId() userId: number ) {
+    return tsRestHandler(tagsContract, {
+      findAll: async () => {
+        const tags = await this.tagsService.findAll(userId);
 
-  @Get()
-  findAll(@CurrentUserId() userId: number) {
-    return this.tagsService.findAll(userId);
-  }
-
-  @Get(":id")
-  async findOne(@Param("id", ParseIntPipe) id: number, @CurrentUserId() userId: number) {
-    const tag = await this.tagsService.findOne(id, userId)
-
-    if (!tag) {
-      throw new NotFoundException()
-    }    
-
-    return tag
-  }
-
-  @Patch(":id")
-  @ApiBody({
-    schema: {
-      example: {
-        name: 'Updated name',
+        return {
+          status: 200,
+          body: toTagResponses(tags),
+        };
       },
-    },
-  })
-  async update(@Param("id", ParseIntPipe) id: number, @Body() updateTagDto: UpdateTagDto, @CurrentUserId() userId: number) {
-    return this.tagsService.update(id, updateTagDto, userId)
-  }
 
-  @Delete(":id")
-  async delete(@Param("id", ParseIntPipe) id: number, @CurrentUserId() userId: number) {
-    return this.tagsService.delete(id, userId)
+      findOne: async ({ params }) => {
+        const tag = await this.tagsService.findOne(
+          params.id,
+          userId,
+        );
+
+        if (!tag) {
+          return {
+            status: 404,
+            body: {
+              message: 'Tag not found',
+            },
+          };
+        }
+
+        return {
+          status: 200,
+          body: toTagWithNotesResponse(tag),
+        };
+      },
+
+      create: async ({ body }) => {
+        const tag = await this.tagsService.create(
+          body,
+          userId,
+        );
+
+        return {
+          status: 201,
+          body: toTagResponse(tag),
+        };
+      },
+
+      update: async ({ params, body }) => {
+        const tag = await this.tagsService.update(
+          params.id,
+          body,
+          userId,
+        );
+
+        return {
+          status: 200,
+          body: toTagResponse(tag),
+        };
+      },
+
+      delete: async ({ params }) => {
+        const tag = await this.tagsService.delete(
+          params.id,
+          userId,
+        );
+
+        return {
+          status: 200,
+          body: toTagResponse(tag),
+        };
+      },
+    });
   }
 }
