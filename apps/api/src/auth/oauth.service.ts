@@ -3,6 +3,19 @@ import { AuthService } from "src/auth/auth.service";
 import { OAuthProvider, OAuthStateType } from "src/constants";
 import { OAuthStateService } from "src/auth/oauth-state.service";
 
+export type OAuthCallbackResult =
+    | { type: 'login'; accessToken: string }
+    | { type: 'link' };
+
+export class OAuthCallbackFailure extends Error {
+    constructor(
+        public readonly stateType: OAuthStateType,
+        public readonly originalError: unknown,
+    ) {
+        super('OAuth callback failed');
+    }
+}
+
 @Injectable()
 export class OAuthService {
     constructor(
@@ -14,7 +27,7 @@ export class OAuthService {
         provider: OAuthProvider,
         stateToken: string,
         oauthUser: any,
-    ) {
+    ): Promise<OAuthCallbackResult> {
         const state =
             await this.oauthStateService.consumeState(stateToken);
 
@@ -24,18 +37,27 @@ export class OAuthService {
             );
         }
 
-        if (state.type === OAuthStateType.LINK) {
-            return this.authService.linkOAuthAccount(
-                state.userId!,
-                oauthUser,
-            );
+        try {
+            if (state.type === OAuthStateType.LINK) {
+                await this.authService.linkOAuthAccount(
+                    state.userId!,
+                    oauthUser,
+                );
+
+                return { type: 'link' };
+            }
+
+            const user =
+                await this.authService.validateOAuthUser(
+                    oauthUser,
+                );
+
+            const { access_token: accessToken } =
+                await this.authService.login(user);
+
+            return { type: 'login', accessToken };
+        } catch (error) {
+            throw new OAuthCallbackFailure(state.type, error);
         }
-
-        const user =
-            await this.authService.validateOAuthUser(
-                oauthUser,
-            );
-
-        return this.authService.login(user);
     }
 }

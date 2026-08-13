@@ -15,8 +15,13 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('returns API service metadata', () => {
+      expect(appController.getInfo()).toMatchObject({
+        name: 'notes-api',
+        version: '1.1.1',
+        status: 'running',
+        documentation: '/docs',
+      });
     });
   });
 });

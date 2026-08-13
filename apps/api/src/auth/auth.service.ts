@@ -12,7 +12,12 @@ export class AuthService {
 
   async validateUser(email: string, password: string) {
     const user = await this.usersService.validateCredentials(email, password);
-    if (!user) throw new UnauthorizedException();
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'invalid_credentials',
+        message: 'Invalid email or password.',
+      });
+    }
     return user;
   }
 
@@ -42,14 +47,18 @@ export class AuthService {
         return identity.user;
     }
 
-    const exists = await this.usersService.userExistsByEmail(
-        profile.email,
+    const existingAccount = await this.usersService.findAuthenticationMethods(
+      profile.email,
     );
 
-    if (exists) {
-        throw new ConflictException(
-          `An account with this email already exists. Please sign in with your existing method first, then link this provider.`,
-        );
+    if (existingAccount) {
+      const usesPassword = Boolean(existingAccount.password);
+      throw new ConflictException({
+        code: usesPassword ? 'use_password' : 'use_provider',
+        message: usesPassword
+          ? 'This account uses email and password. Sign in with your password, then link this provider from Settings.'
+          : 'This email is already associated with another provider. Sign in with that provider first.',
+      });
     }
 
     return this.usersService.createOAuthUser({

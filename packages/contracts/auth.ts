@@ -1,18 +1,12 @@
 import { initContract } from '@ts-rest/core';
-import { z } from 'zod';
-
 import {
   createUserSchema,
   userSchema,
   loginSchema,
-  errorSchema
+  errorSchema,
 } from '@notes/schemas';
 
 const c = initContract();
-
-const loginResponseSchema = z.object({
-  access_token: z.string(),
-});
 
 export const authContract = c.router({
   login: {
@@ -20,7 +14,7 @@ export const authContract = c.router({
     path: '/auth/login',
     body: loginSchema,
     responses: {
-      200: loginResponseSchema,
+      204: c.noBody(),
       401: errorSchema,
     },
   },
@@ -32,6 +26,16 @@ export const authContract = c.router({
     responses: {
       201: userSchema,
       409: errorSchema,
+    },
+  },
+
+  logout: {
+    method: 'POST',
+    path: '/auth/logout',
+    body: c.noBody(),
+    responses: {
+      204: c.noBody(),
+      401: errorSchema,
     },
   },
 });

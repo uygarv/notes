@@ -2,6 +2,7 @@ import { initContract } from '@ts-rest/core';
 
 import {
   userSchema,
+  identityProviderSchema,
   updateUserSchema,
   validationErrorSchema,
 } from '@notes/schemas';
@@ -14,6 +15,14 @@ export const usersContract = c.router({
     path: '/users/me',
     responses: {
       200: userSchema,
+    },
+  },
+
+  getIdentityProviders: {
+    method: 'GET',
+    path: '/users/me/identities',
+    responses: {
+      200: identityProviderSchema.array(),
     },
   },
 

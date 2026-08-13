@@ -3,6 +3,10 @@
 **/node_modules
 /build
 
+# Next.js
+**/.next/
+**/*.tsbuildinfo
+
 # Logs
 logs
 *.log
@@ -11,6 +15,12 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+
+# Local AI tooling
+AGENTS.md
+CLAUDE.md
+**/AGENTS.md
+**/CLAUDE.md
 
 # OS
 .DS_Store

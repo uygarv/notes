@@ -28,6 +28,10 @@ export class UsersController {
                     body: toUserResponse(user)
                 }
             },
+            getIdentityProviders: async () => ({
+                status: 200,
+                body: await this.usersService.getIdentityProviders(userId),
+            }),
             updateMe: async ({ body }) => {
                 const user = await this.usersService.updateUser(body, userId)
 

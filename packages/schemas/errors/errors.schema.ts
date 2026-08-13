@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const errorSchema = z.object({
   message: z.string(),
+  code: z.string().optional(),
 });
 
 export const validationIssueSchema = z.object({

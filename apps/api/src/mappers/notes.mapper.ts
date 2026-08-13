@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import type { Note } from '@notes/schemas';
 
+import { toTagResponses } from './tags.mapper';
+
 type NoteWithTags = Prisma.NoteGetPayload<{
   include: {
     tags: true;
@@ -8,11 +10,13 @@ type NoteWithTags = Prisma.NoteGetPayload<{
 }>;
 
 export function toNoteResponse(note: NoteWithTags): Note {
-  const { userId: _, ...response } = note;
+  const { userId: _, tags, ...response } = note;
 
   return {
     ...response,
+    tags: toTagResponses(tags),
     createdAt: note.createdAt.toISOString(),
+    updatedAt: note.updatedAt.toISOString(),
   };
 }
 

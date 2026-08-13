@@ -30,6 +30,16 @@ export class UsersService {
         return !!user;
     }
 
+    async findAuthenticationMethods(email: string) {
+        return this.prisma.user.findUnique({
+            where: { email },
+            select: {
+                password: true,
+                identities: { select: { provider: true } },
+            },
+        });
+    }
+
     async findById(userId: number) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
@@ -78,11 +88,31 @@ export class UsersService {
         })
     }
 
+    async getIdentityProviders(userId: number) {
+        const identities = await this.prisma.identity.findMany({
+            where: { userId },
+            select: { provider: true },
+        });
+        const linkedProviders = new Set(identities.map((identity) => identity.provider));
+
+        return Object.values(OAuthProvider).map((provider) => ({
+            provider,
+            linked: linkedProviders.has(provider),
+        }));
+    }
+
     async validateCredentials(email: string, password: string) {
         const user = await this.findByEmail(email);
 
-        if (!user || !user.password) {
+        if (!user) {
             return null;
+        }
+
+        if (!user.password) {
+            throw new UnauthorizedException({
+                code: 'use_provider',
+                message: 'This account uses a connected provider. Sign in with that provider instead.',
+            });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -136,14 +166,16 @@ export class UsersService {
 
         if (existingIdentity) {
             if (existingIdentity.userId === userId) {
-                throw new BadRequestException(
-                    'This account is already linked.',
-                );
+                throw new BadRequestException({
+                    code: 'already_linked',
+                    message: 'This provider is already linked to your account.',
+                });
             }
 
-            throw new BadRequestException(
-                'This account is already linked to another user.',
-            );
+            throw new ConflictException({
+                code: 'already_connected',
+                message: 'This provider account is already connected to another Notes account.',
+            });
         }
 
         return this.prisma.identity.create({
@@ -155,4 +187,3 @@ export class UsersService {
         });
     }
 }
-
