@@ -17,22 +17,19 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     switch (exception.code) {
       case 'P2025':
         response.status(HttpStatus.NOT_FOUND).json({
-          statusCode: 404,
-          message: 'Resource not found',
+          code: 'not_found',
         });
         break;
 
       case 'P2002':
         response.status(HttpStatus.CONFLICT).json({
-          statusCode: 409,
-          message: 'Unique constraint failed',
+          code: 'conflict',
         });
         break;
 
       default:
         response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-          statusCode: 500,
-          message: 'An error occured',
+          code: 'internal_error',
         });
     }
   }

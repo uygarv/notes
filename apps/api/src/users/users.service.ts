@@ -3,8 +3,9 @@ import * as bcrypt from 'bcrypt';
 import { OAuthProfile } from 'src/auth/interfaces/oauth-profile.interface';
 import { OAuthProvider } from 'src/constants';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
-import { type UpdateUser } from '@notes/schemas';
+import type { UpdateUser } from '@notes/schemas';
 
 @Injectable()
 export class UsersService {
@@ -40,6 +41,17 @@ export class UsersService {
         });
     }
 
+    async findPasswordResetUser(email: string) {
+        return this.prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+                email: true,
+                password: true,
+            },
+        });
+    }
+
     async findById(userId: number) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
@@ -49,7 +61,7 @@ export class UsersService {
         });
 
         if (!user) {
-            throw new UnauthorizedException();
+            throw new UnauthorizedException({ code: 'unauthorized' });
         }
 
         return user
@@ -57,15 +69,45 @@ export class UsersService {
 
     async create(email: string, password: string) {
         const hash = await bcrypt.hash(password, 10);
-        return this.prisma.user.create({
-            data: {
-                email,
-                password: hash
-            },
-            omit: {
-                password: true,
-            },
+        return this.createWithEmailUsername({
+            email,
+            password: hash,
         });
+    }
+
+    private async createWithEmailUsername(data: Prisma.UserCreateInput) {
+        const usernameBase = data.email.split('@')[0] || 'user';
+
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const username = attempt === 0 ? usernameBase : `${usernameBase}-${attempt + 1}`;
+
+            try {
+                return await this.prisma.user.create({
+                    data: {
+                        ...data,
+                        username,
+                    },
+                    omit: {
+                        password: true,
+                    },
+                });
+            } catch (error) {
+                const target = error instanceof Prisma.PrismaClientKnownRequestError
+                    ? error.meta?.target
+                    : undefined;
+                const conflictingFields = Array.isArray(target) ? target : [target];
+
+                if (
+                    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+                    error.code !== 'P2002' ||
+                    !conflictingFields.includes('username')
+                ) {
+                    throw error;
+                }
+            }
+        }
+
+        throw new ConflictException({ code: 'username_taken' });
     }
 
     async updateUser(user: UpdateUser, userId: number) {
@@ -75,7 +117,7 @@ export class UsersService {
             });
 
             if (existingUser && existingUser.id !== userId) {
-                throw new ConflictException('Username is already taken');
+                throw new ConflictException({ code: 'username_taken' });
             }
         }
 
@@ -111,7 +153,6 @@ export class UsersService {
         if (!user.password) {
             throw new UnauthorizedException({
                 code: 'use_provider',
-                message: 'This account uses a connected provider. Sign in with that provider instead.',
             });
         }
 
@@ -122,6 +163,30 @@ export class UsersService {
 
         const { password: _, ...result } = user;
         return result;
+    }
+
+    async resetPassword(userId: number, password: string) {
+        const hash = await bcrypt.hash(password, 10);
+
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                password: hash,
+                tokenVersion: { increment: 1 },
+            },
+            omit: {
+                password: true,
+            },
+        });
+    }
+
+    async isTokenVersionCurrent(userId: number, tokenVersion: number) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { tokenVersion: true },
+        });
+
+        return user?.tokenVersion === tokenVersion;
     }
 
     async findByIdentity(provider: OAuthProvider, providerId: string) {
@@ -140,15 +205,13 @@ export class UsersService {
     async createOAuthUser(profile: OAuthProfile) {
         const { email, provider, providerId } = profile;
 
-        return this.prisma.user.create({
-            data: {
-                email,
-                password: null,
-                identities: {
-                    create: {
-                        provider,
-                        providerId,
-                    },
+        return this.createWithEmailUsername({
+            email,
+            password: null,
+            identities: {
+                create: {
+                    provider,
+                    providerId,
                 },
             },
         });
@@ -168,13 +231,11 @@ export class UsersService {
             if (existingIdentity.userId === userId) {
                 throw new BadRequestException({
                     code: 'already_linked',
-                    message: 'This provider is already linked to your account.',
                 });
             }
 
             throw new ConflictException({
                 code: 'already_connected',
-                message: 'This provider account is already connected to another Notes account.',
             });
         }
 

@@ -34,9 +34,9 @@ export class OAuthStateService {
         const value = await this.redis.get(key);
 
         if (!value) {
-            throw new UnauthorizedException(
-                'Invalid or expired OAuth state',
-            );
+            throw new UnauthorizedException({
+              code: 'oauth_state_invalid',
+            });
         }
 
         await this.redis.delete(key);

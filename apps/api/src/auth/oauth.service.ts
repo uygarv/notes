@@ -32,9 +32,9 @@ export class OAuthService {
             await this.oauthStateService.consumeState(stateToken);
 
         if (state.provider !== provider) {
-            throw new UnauthorizedException(
-                "Invalid OAuth provider",
-            );
+            throw new UnauthorizedException({
+              code: 'oauth_provider_invalid',
+            });
         }
 
         try {

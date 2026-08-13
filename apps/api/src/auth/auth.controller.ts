@@ -12,6 +12,7 @@ import { TsRestHandler, tsRestHandler } from '@ts-rest/nest';
 import type { Response } from 'express';
 
 import { authContract } from '@notes/contracts';
+import { errorCodeSchema, type ErrorCode } from '@notes/schemas';
 
 import { OAuthProvider, OAuthStateType } from 'src/constants';
 import { AuthService } from './auth.service';
@@ -52,6 +53,25 @@ export class AuthController {
         status: 201,
         body: toUserResponse(user),
       };
+    });
+  }
+
+  @TsRestHandler(authContract.forgotPassword)
+  async forgotPasswordHandler() {
+    return tsRestHandler(authContract.forgotPassword, async ({ body }) => {
+      await this.authService.requestPasswordReset(body.email);
+
+      return { status: 204, body: undefined };
+    });
+  }
+
+  @TsRestHandler(authContract.resetPassword)
+  async resetPasswordHandler(@Res({ passthrough: true }) response: Response) {
+    return tsRestHandler(authContract.resetPassword, async ({ body }) => {
+      await this.authService.resetPassword(body.token, body.password);
+      this.clearSessionCookie(response);
+
+      return { status: 204, body: undefined };
     });
   }
 
@@ -109,6 +129,9 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
+      ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
+        ? { domain: process.env.COOKIE_DOMAIN }
+        : {}),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
@@ -117,14 +140,21 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async logoutHandler(@Res({ passthrough: true }) response: Response) {
     return tsRestHandler(authContract.logout, async () => {
-      response.clearCookie('notes_access_token', {
+      this.clearSessionCookie(response);
+
+      return { status: 204, body: undefined };
+    });
+  }
+
+  private clearSessionCookie(response: Response) {
+    response.clearCookie('notes_access_token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
-      });
-
-      return { status: 204, body: undefined };
+        ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
+          ? { domain: process.env.COOKIE_DOMAIN }
+          : {}),
     });
   }
 
@@ -165,11 +195,12 @@ export class AuthController {
     }
   }
 
-  private getOAuthErrorCode(error: unknown, status: number) {
+  private getOAuthErrorCode(error: unknown, status: number): ErrorCode {
     if (typeof error === 'object' && error && 'getResponse' in error && typeof error.getResponse === 'function') {
       const body = error.getResponse();
-      if (typeof body === 'object' && body && 'code' in body && typeof body.code === 'string') {
-        return body.code;
+      if (typeof body === 'object' && body && 'code' in body) {
+        const code = errorCodeSchema.safeParse(body.code);
+        if (code.success) return code.data;
       }
     }
 

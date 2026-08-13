@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownAZ, CalendarArrowDown, Clock3, Search, Plus, Tag as TagIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Note } from '@notes/schemas';
@@ -21,9 +21,10 @@ export function NotesWorkspace() {
   const notes = useNotes();
   const tags = useTags();
   const deleteNote = useDeleteNote();
-  const selectedNoteId = useUiStore((state) => state.selectedNoteId);
+  const storedSelectedNoteId = useUiStore((state) => state.selectedNoteId);
   const selectNote = useUiStore((state) => state.selectNote);
   const draft = useUiStore((state) => state.draft);
+  const draftId = useUiStore((state) => state.draftId);
   const startDraft = useUiStore((state) => state.startDraft);
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<number | null>(null);
@@ -32,6 +33,9 @@ export function NotesWorkspace() {
   const [deleteError, setDeleteError] = useState('');
   const [sort, setSort] = useState<SortOption>('updated-desc');
   const [isCompactLayout, setIsCompactLayout] = useState(false);
+  const [createdFromDraftId, setCreatedFromDraftId] = useState<number | null>(null);
+  const [createdNote, setCreatedNote] = useState<Note | null>(null);
+  const selectedNoteId = storedSelectedNoteId;
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1023px)');
@@ -41,12 +45,38 @@ export function NotesWorkspace() {
     return () => media.removeEventListener('change', updateLayout);
   }, []);
 
+  const openNote = useCallback((noteId: number) => {
+    setCreatedNote(null);
+    setCreatedFromDraftId(null);
+    selectNote(noteId);
+  }, [selectNote]);
+
+  const startNewNote = useCallback(() => {
+    setCreatedNote(null);
+    setCreatedFromDraftId(null);
+    startDraft();
+  }, [startDraft]);
+
+  const closeEditor = useCallback(() => {
+    setCreatedNote(null);
+    setCreatedFromDraftId(null);
+    selectNote(null);
+  }, [selectNote]);
+
+  const handleNoteCreated = useCallback((note: Note) => {
+    setCreatedFromDraftId(note.id);
+    setCreatedNote(note);
+    selectNote(note.id);
+  }, [selectNote]);
+
   const filtered = useMemo(() => (notes.data ?? []).filter((note) => {
     const needle = search.trim().toLowerCase();
     const match = !needle || [note.title, toPlainText(note.content), ...note.tags.map((tag) => tag.name)].some((value) => value.toLowerCase().includes(needle));
     return match && (tagFilter === null || note.tags.some((tag) => tag.id === tagFilter));
   }), [notes.data, search, tagFilter]);
-  const selected = notes.data?.find((note) => note.id === selectedNoteId) ?? null;
+  const selected = notes.data?.find((note) => note.id === selectedNoteId)
+    ?? (createdNote?.id === selectedNoteId ? createdNote : null);
+
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     if (sort === 'title-asc') return a.title.localeCompare(b.title);
     if (sort === 'created-desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -55,17 +85,17 @@ export function NotesWorkspace() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); startDraft(); }
-      if (event.key === 'ArrowDown' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index + 1]) selectNote(sorted[index + 1].id); }
-      if (event.key === 'ArrowUp' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index - 1]) selectNote(sorted[index - 1].id); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); startNewNote(); }
+      if (event.key === 'ArrowDown' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index + 1]) openNote(sorted[index + 1].id); }
+      if (event.key === 'ArrowUp' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index - 1]) openNote(sorted[index - 1].id); }
     }
     window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedNoteId, selectNote, sorted, startDraft]);
+  }, [openNote, selectedNoteId, sorted, startNewNote]);
 
   async function confirmDelete() {
     if (!deleting) return;
     setDeleteError('');
-    try { await deleteNote.mutateAsync(deleting.id); if (selectedNoteId === deleting.id) selectNote(notes.data?.find((note) => note.id !== deleting.id)?.id ?? null); setDeleteDialogOpen(false); } catch (error) { setDeleteError(formatApiError(error)); }
+    try { await deleteNote.mutateAsync(deleting.id); if (selectedNoteId === deleting.id) { const next = notes.data?.find((note) => note.id !== deleting.id); if (next) openNote(next.id); else closeEditor(); } setDeleteDialogOpen(false); } catch (error) { setDeleteError(formatApiError(error)); }
   }
 
   function requestDelete(note: Note) {
@@ -75,10 +105,15 @@ export function NotesWorkspace() {
   }
 
   const hasEditor = Boolean(selected || draft);
-  const notesPanel = <NotesPanel noteCount={notes.data?.length ?? 0} tags={tags.data ?? []} search={search} setSearch={setSearch} tagFilter={tagFilter} setTagFilter={setTagFilter} setSort={setSort} notes={sorted} selectedId={selectedNoteId} pending={notes.isPending} onSelect={selectNote} onNew={startDraft} />;
-  const editor = <NoteEditor key={selected?.id ?? 'draft'} note={selected} onDelete={requestDelete} onBack={() => selectNote(null)} />;
+  const editorTransitionKey = draft
+    ? `editor-draft-${draftId}`
+    : createdFromDraftId === selected?.id
+    ? `editor-draft-${draftId}`
+    : `editor-${selected?.id ?? 'draft'}`;
+  const notesPanel = <NotesPanel noteCount={notes.data?.length ?? 0} tags={tags.data ?? []} search={search} setSearch={setSearch} tagFilter={tagFilter} setTagFilter={setTagFilter} setSort={setSort} notes={sorted} selectedId={selectedNoteId} pending={notes.isPending} onSelect={openNote} onNew={startNewNote} />;
+  const editor = <NoteEditor key={editorTransitionKey} note={selected} onDelete={requestDelete} onBack={closeEditor} onCreated={handleNoteCreated} />;
 
-  return <div className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1">{isCompactLayout ? <div className="relative flex min-w-0 flex-1 overflow-x-hidden"><AnimatePresence initial={false} mode="wait">{hasEditor ? <motion.div key={`editor-${selected?.id ?? 'draft'}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{editor}</motion.div> : <motion.div key="notes" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{notesPanel}</motion.div>}</AnimatePresence></div> : <div className="flex min-w-0 flex-1">{notesPanel}<AnimatePresence initial={false} mode="wait">{hasEditor && <motion.div key={`editor-${selected?.id ?? 'draft'}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{editor}</motion.div>}</AnimatePresence></div>}<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}><AlertDialogContent><AlertDialogPrimitive.Title className="text-base font-semibold">Delete “{deleting?.title ?? 'this note'}”?</AlertDialogPrimitive.Title><AlertDialogPrimitive.Description className="text-muted-foreground mt-2 text-sm leading-6">This note will be permanently removed. This action cannot be undone.</AlertDialogPrimitive.Description>{deleteError && <p role="alert" className="text-destructive mt-3 text-sm">{deleteError}</p>}<AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={confirmDelete}>Delete note</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div>;
+  return <div className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1">{isCompactLayout ? <div className="relative flex min-w-0 flex-1 overflow-x-hidden"><AnimatePresence initial={false} mode="wait">{hasEditor ? <motion.div key={editorTransitionKey} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{editor}</motion.div> : <motion.div key="notes" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{notesPanel}</motion.div>}</AnimatePresence></div> : <div className="flex min-w-0 flex-1">{notesPanel}<AnimatePresence initial={false} mode="wait">{hasEditor && <motion.div key={editorTransitionKey} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.1, ease: 'easeOut' }} className="flex min-w-0 flex-1">{editor}</motion.div>}</AnimatePresence></div>}<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}><AlertDialogContent><AlertDialogPrimitive.Title className="text-base font-semibold">Delete “{deleting?.title ?? 'this note'}”?</AlertDialogPrimitive.Title><AlertDialogPrimitive.Description className="text-muted-foreground mt-2 text-sm leading-6">This note will be permanently removed. This action cannot be undone.</AlertDialogPrimitive.Description>{deleteError && <p role="alert" className="text-destructive mt-3 text-sm">{deleteError}</p>}<AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={confirmDelete}>Delete note</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div>;
 }
 
 function NotesPanel({ noteCount, tags, search, setSearch, tagFilter, setTagFilter, setSort, notes, selectedId, pending, onSelect, onNew }: { noteCount: number; tags: { id: number; name: string }[]; search: string; setSearch: (value: string) => void; tagFilter: number | null; setTagFilter: (value: number | null) => void; setSort: (value: SortOption) => void; notes: Note[]; selectedId: number | null; pending: boolean; onSelect: (id: number) => void; onNew: () => void }) {

@@ -18,6 +18,7 @@ export const tagsContract = c.router({
     path: '/v1/tags',
     responses: {
       200: z.array(tagSchema),
+      401: errorSchema,
     },
   },
 
@@ -30,6 +31,7 @@ export const tagsContract = c.router({
     responses: {
       200: tagWithNotesSchema,
       404: errorSchema,
+      401: errorSchema,
     },
   },
 
@@ -40,6 +42,8 @@ export const tagsContract = c.router({
     responses: {
       201: tagSchema,
       400: validationErrorSchema,
+      401: errorSchema,
+      409: errorSchema,
     },
   },
 
@@ -53,6 +57,8 @@ export const tagsContract = c.router({
     responses: {
       200: tagSchema,
       400: validationErrorSchema,
+      401: errorSchema,
+      404: errorSchema,
     },
   },
 
@@ -64,6 +70,8 @@ export const tagsContract = c.router({
     }),
     responses: {
       200: tagSchema,
+      401: errorSchema,
+      404: errorSchema,
     },
   },
 });

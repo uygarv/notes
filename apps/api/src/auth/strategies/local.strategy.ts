@@ -17,7 +17,9 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     const result = loginSchema.safeParse({ email, password });
 
     if (!result.success) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException({
+        code: 'invalid_credentials',
+      });
     }
 
     return this.authService.validateUser(result.data.email, result.data.password);

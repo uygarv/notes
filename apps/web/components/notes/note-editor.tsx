@@ -16,6 +16,7 @@ type EditorProps = {
   note: Note | null;
   onDelete: (note: Note) => void;
   onBack: () => void;
+  onCreated: (note: Note) => void;
 };
 
 type NoteFields = {
@@ -28,11 +29,10 @@ function persistedTitle(title: string) {
   return title.trim() || 'Untitled note';
 }
 
-export function NoteEditor({ note, onDelete, onBack }: EditorProps) {
+export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
   const draft = useUiStore((state) => state.draft);
   const updateDraft = useUiStore((state) => state.updateDraft);
   const clearDraft = useUiStore((state) => state.clearDraft);
-  const selectNote = useUiStore((state) => state.selectNote);
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
   const tags = useTags();
@@ -80,7 +80,7 @@ export function NoteEditor({ note, onDelete, onBack }: EditorProps) {
       createNote.mutate(payload.data, {
         onSuccess: (created) => {
           clearDraft();
-          selectNote(created.id);
+          onCreated(created);
         },
         onError: () => {
           lastCreateAttempt.current = '';
@@ -89,7 +89,7 @@ export function NoteEditor({ note, onDelete, onBack }: EditorProps) {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [content, createNote, draft, tagIds, title, clearDraft, selectNote]);
+  }, [content, createNote, draft, tagIds, title, clearDraft, onCreated]);
 
   function updateField(next: Partial<NoteFields>) {
     const nextTitle = next.title ?? title;

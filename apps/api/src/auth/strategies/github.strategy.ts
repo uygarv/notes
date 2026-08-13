@@ -26,9 +26,9 @@ export class GitHubStrategy
         const email = profile.emails?.[0]?.value;
 
         if (!email) {
-            throw new UnauthorizedException(
-                'GitHub account has no email',
-            );
+            throw new UnauthorizedException({
+                code: 'oauth_email_unavailable',
+            });
         }
 
         return {

@@ -5,14 +5,17 @@ import { PrismaExceptionFilter } from './prisma/prisma-exception.filter'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ZodValidationPipe } from './common/pipes/zod-validation.pipe';
 import { TsRestValidationFilter } from './common/filters/ts-rest-validation.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { FallbackExceptionFilter } from './common/filters/fallback-exception.filter';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const webUrl = process.env.WEB_URL ?? 'http://localhost:3001';
+  const normalizeOrigin = (value: string) => value.replace(/\/+$/, '');
+  const webUrl = normalizeOrigin(process.env.WEB_URL ?? 'http://localhost:3001');
   const corsOrigins = new Set(
     [webUrl, ...(process.env.CORS_ORIGINS?.split(',') ?? [])]
-      .map((origin) => origin.trim())
+      .map((origin) => normalizeOrigin(origin.trim()))
       .filter(Boolean),
   );
 
@@ -23,7 +26,7 @@ async function bootstrap() {
         return;
       }
 
-      callback(new Error('Origin is not allowed by CORS'));
+      callback(null, false);
     },
     credentials: true,
   });
@@ -52,8 +55,10 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(
+    new FallbackExceptionFilter(),
     new PrismaExceptionFilter(),
     new TsRestValidationFilter(),
+    new HttpExceptionFilter(),
   )
 
   await app.listen(process.env.PORT ?? 3000);

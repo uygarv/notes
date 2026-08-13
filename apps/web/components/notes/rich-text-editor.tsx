@@ -103,7 +103,7 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
   if (!editor) return <div className="bg-muted/50 h-[28rem] animate-pulse rounded-md" />;
 
   return <div className="flex min-h-0 flex-1 flex-col">
-    <div className="bg-background/95 sticky top-14 z-10 -mx-1 flex flex-wrap items-center gap-0.5 border-b py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div className="bg-background/95 sticky top-14 z-10 -mx-1 flex flex-nowrap items-center gap-0.5 overflow-x-auto border-b py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <BlockStyleMenu editor={editor} />
       <Separator orientation="vertical" className="mx-1 h-5" />
       <EditorButton label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><Bold /></EditorButton>
@@ -115,7 +115,7 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
       <EditorButton label="Checklist" active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks /></EditorButton>
       <TableControls editor={editor} />
       <EditorButton label="Add link" active={editor.isActive('link')} onClick={openLinkDialog}><Link2 /></EditorButton>
-      <span className="flex-1" />
+      <span className="hidden flex-1 sm:block" />
       <EditorButton label="Undo" disabled={!editor.can().chain().focus().undo().run()} onClick={() => editor.chain().focus().undo().run()}><Undo2 /></EditorButton>
       <EditorButton label="Redo" disabled={!editor.can().chain().focus().redo().run()} onClick={() => editor.chain().focus().redo().run()}><Redo2 /></EditorButton>
     </div>
@@ -143,8 +143,10 @@ export function RichTextEditor({ content, onChange, editable = true }: RichTextE
 
 function BlockStyleMenu({ editor }: { editor: Editor }) {
   const currentStyle = getCurrentBlockStyle(editor);
+  const shouldRestoreFocus = useRef(false);
 
   function applyStyle(style: BlockStyle) {
+    shouldRestoreFocus.current = true;
     if (style === 'title') editor.chain().focus().toggleHeading({ level: 1 }).run();
     if (style === 'heading') editor.chain().focus().toggleHeading({ level: 2 }).run();
     if (style === 'subheading') editor.chain().focus().toggleHeading({ level: 3 }).run();
@@ -158,7 +160,7 @@ function BlockStyleMenu({ editor }: { editor: Editor }) {
     }
   }
 
-  return <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2" aria-label="Change text style"><Type className="size-4" /><span className="hidden text-xs sm:inline">{currentStyle.label}</span><ChevronDown className="size-3" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-48"><BlockStyleItem active={currentStyle.id === 'title'} icon={<Heading1 />} label="Title" onSelect={() => applyStyle('title')} /><BlockStyleItem active={currentStyle.id === 'heading'} icon={<Heading2 />} label="Heading" onSelect={() => applyStyle('heading')} /><BlockStyleItem active={currentStyle.id === 'subheading'} icon={<Heading3 />} label="Subheading" onSelect={() => applyStyle('subheading')} /><BlockStyleItem active={currentStyle.id === 'body'} icon={<Type />} label="Body" onSelect={() => applyStyle('body')} /><BlockStyleItem active={currentStyle.id === 'monostyled'} icon={<Code2 />} label="Monostyled" onSelect={() => applyStyle('monostyled')} /><Separator className="my-1" /><BlockStyleItem active={currentStyle.id === 'bullet'} icon={<List />} label="Bulleted list" onSelect={() => applyStyle('bullet')} /><BlockStyleItem active={currentStyle.id === 'dashed'} icon={<List />} label="Dashed list" onSelect={() => applyStyle('dashed')} /><BlockStyleItem active={currentStyle.id === 'numbered'} icon={<ListOrdered />} label="Numbered list" onSelect={() => applyStyle('numbered')} /><Separator className="my-1" /><BlockStyleItem active={currentStyle.id === 'quote'} icon={<Quote />} label="Block quote" onSelect={() => applyStyle('quote')} /></DropdownMenuContent></DropdownMenu>;
+  return <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 gap-1 px-2" aria-label="Change text style"><Type className="size-4" /><span className="hidden text-xs sm:inline">{currentStyle.label}</span><ChevronDown className="size-3" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-48" onCloseAutoFocus={(event) => { if (!shouldRestoreFocus.current) return; event.preventDefault(); shouldRestoreFocus.current = false; requestAnimationFrame(() => editor.commands.focus()); }}><BlockStyleItem active={currentStyle.id === 'title'} icon={<Heading1 />} label="Title" onSelect={() => applyStyle('title')} /><BlockStyleItem active={currentStyle.id === 'heading'} icon={<Heading2 />} label="Heading" onSelect={() => applyStyle('heading')} /><BlockStyleItem active={currentStyle.id === 'subheading'} icon={<Heading3 />} label="Subheading" onSelect={() => applyStyle('subheading')} /><BlockStyleItem active={currentStyle.id === 'body'} icon={<Type />} label="Body" onSelect={() => applyStyle('body')} /><BlockStyleItem active={currentStyle.id === 'monostyled'} icon={<Code2 />} label="Monostyled" onSelect={() => applyStyle('monostyled')} /><Separator className="my-1" /><BlockStyleItem active={currentStyle.id === 'bullet'} icon={<List />} label="Bulleted list" onSelect={() => applyStyle('bullet')} /><BlockStyleItem active={currentStyle.id === 'dashed'} icon={<List />} label="Dashed list" onSelect={() => applyStyle('dashed')} /><BlockStyleItem active={currentStyle.id === 'numbered'} icon={<ListOrdered />} label="Numbered list" onSelect={() => applyStyle('numbered')} /><Separator className="my-1" /><BlockStyleItem active={currentStyle.id === 'quote'} icon={<Quote />} label="Block quote" onSelect={() => applyStyle('quote')} /></DropdownMenuContent></DropdownMenu>;
 }
 
 function TableControls({ editor }: { editor: Editor }) {
@@ -197,5 +199,5 @@ function getCurrentBlockStyle(editor: Editor) {
 }
 
 function EditorButton({ label, active, className, ...props }: React.ComponentProps<typeof Button> & { label: string; active?: boolean }) {
-  return <Button type="button" variant={active ? 'secondary' : 'ghost'} size="icon-sm" className={cn('size-7 [&_svg]:size-3.5', className)} aria-label={label} aria-pressed={active} {...props} />;
+  return <Button type="button" variant={active ? 'secondary' : 'ghost'} size="icon-sm" className={cn('size-7 shrink-0 [&_svg]:size-3.5', className)} aria-label={label} aria-pressed={active} {...props} />;
 }

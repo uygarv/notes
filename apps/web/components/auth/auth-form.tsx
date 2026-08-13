@@ -14,8 +14,9 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSeparator } from '@/components/ui/field';
 import { motion } from 'motion/react';
-import { getAuthErrorMessage } from '@/lib/strings';
+import { getErrorMessage } from '@/lib/strings';
 import { oauthProviders } from '@/lib/oauth-providers';
+import { formatApiError } from '@/lib/utils';
 
 export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
@@ -25,7 +26,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState(getAuthErrorMessage(params.get('error'), 'Unable to sign in.'));
+  const [error, setError] = useState(getErrorMessage(params.get('error'), 'Unable to sign in.'));
   const [pending, setPending] = useState(false);
   const isSignup = mode === 'signup';
   const GoogleIcon = oauthProviders.google.Icon;
@@ -59,10 +60,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       router.replace(params.get('next') || '/');
     } catch (caught) {
-      const message = caught instanceof ApiError
-        ? getAuthErrorMessage(caught.code, caught.message)
-        : 'Unable to continue. Please try again.';
-      setError(message);
+      setError(formatApiError(caught));
       if (caught instanceof ApiError) {
         setFieldErrors(Object.fromEntries(caught.issues.map((issue) => [issue.path.join('.'), issue.message])));
       }
@@ -82,7 +80,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           <FieldSeparator>Or continue with email</FieldSeparator>
           <Field><FieldLabel htmlFor="email">Email</FieldLabel><Input id="email" type="email" placeholder="you@example.com" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'email-error' : undefined} />{fieldErrors.email && <FieldError id="email-error">{fieldErrors.email}</FieldError>}</Field>
           <Field><FieldLabel htmlFor="password">Password</FieldLabel><Input id="password" type="password" autoComplete={isSignup ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'password-error' : undefined} />{fieldErrors.password && <FieldError id="password-error">{fieldErrors.password}</FieldError>}</Field>
+          {!isSignup && <Link className="-mt-3 text-right text-sm underline-offset-4 hover:underline" href="/forgot-password">Forgot password?</Link>}
           {error && <FieldError className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2">{error}</FieldError>}
+          {params.get('reset') === 'success' && <FieldDescription className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-center text-emerald-700 dark:text-emerald-400">Password updated. Sign in with your new password.</FieldDescription>}
           <Field><Button className="w-full" type="submit" disabled={pending}>{pending && <LoaderCircle className="animate-spin" />}{isSignup ? 'Create account' : 'Sign in'}</Button><FieldDescription className="text-center">{isSignup ? 'Already have an account?' : 'New to Notes?'} <Link className="text-foreground underline underline-offset-4 hover:text-primary" href={isSignup ? '/login' : '/sign-up'}>{isSignup ? 'Sign in' : 'Create an account'}</Link></FieldDescription></Field>
         </FieldGroup></form></CardContent>
       </Card>

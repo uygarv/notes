@@ -1,5 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { errorMessages } from '@notes/schemas';
+import { ApiError } from '@/lib/api';
+import { getErrorMessage } from '@/lib/strings';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,5 +31,6 @@ export function toPlainText(value: string) {
 }
 
 export function formatApiError(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  if (error instanceof ApiError) return getErrorMessage(error.code, error.message);
+  return errorMessages.internal_error;
 }

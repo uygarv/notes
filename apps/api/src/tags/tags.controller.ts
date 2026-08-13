@@ -40,7 +40,7 @@ export class TagsController {
           return {
             status: 404,
             body: {
-              message: 'Tag not found',
+              code: 'tag_not_found',
             },
           };
         }

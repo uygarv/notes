@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { IdentityConnections } from '@/components/users/identity-connections';
-import { getAuthErrorMessage } from '@/lib/strings';
+import { getErrorMessage } from '@/lib/strings';
 
 export default function SettingsPage() {
   return <Suspense fallback={null}><SettingsContent /></Suspense>;
@@ -23,7 +23,7 @@ function SettingsContent() {
   const params = useSearchParams();
   const [username, setUsername] = useState(() => user.data?.username ?? '');
   const [message, setMessage] = useState('');
-  const linkError = getAuthErrorMessage(params.get('link_error'), 'That account could not be linked. Please try again.');
+  const linkError = getErrorMessage(params.get('link_error'), 'That account could not be linked. Please try again.');
 
   async function submit(event: FormEvent) {
     event.preventDefault();

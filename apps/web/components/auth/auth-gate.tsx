@@ -6,6 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
 import { queryKeys, useCurrentUser } from '@/lib/queries';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -33,5 +35,5 @@ function WorkspaceSkeleton() {
 }
 
 function WorkspaceError({ onRetry }: { onRetry: () => void }) {
-  return <main className="grid min-h-screen place-items-center p-6"><div className="max-w-sm text-center"><h1 className="text-lg font-semibold">Couldn’t load your workspace</h1><p className="mt-2 text-sm text-zinc-500">Check your connection and try again.</p><button className="mt-4 rounded-md bg-zinc-900 px-3 py-2 text-sm text-white dark:bg-zinc-50 dark:text-zinc-950" onClick={onRetry}>Try again</button></div></main>;
+  return <main className="grid min-h-screen place-items-center p-6"><div role="alert" className="max-w-sm text-center"><h1 className="text-lg font-semibold">Couldn’t load your workspace</h1><p className="text-muted-foreground mt-2 text-sm">Check your connection and try again.</p><Button className="mt-4" onClick={onRetry}><RefreshCw />Try again</Button></div></main>;
 }

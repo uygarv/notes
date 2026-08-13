@@ -4,7 +4,7 @@ import { CreateNoteDto } from './dto/create-note.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { UpdateNoteDto } from './dto/update-note.dto';
 
-import type { CreateNote, UpdateNote } from '@notes/schemas';
+import { type CreateNote, type UpdateNote } from '@notes/schemas';
 
 @Injectable()
 export class NotesService {
@@ -75,9 +75,9 @@ export class NotesService {
         });
 
         if (userTags.length !== tags.length) {
-            throw new BadRequestException(
-                'One or more tags not found.',
-            );
+            throw new BadRequestException({
+                code: 'tags_not_found',
+            });
         }
     }
 

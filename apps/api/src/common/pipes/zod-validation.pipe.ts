@@ -46,9 +46,9 @@ export class ZodValidationPipe implements PipeTransform {
     }
 
     throw new BadRequestException({
+      code: 'validation_error',
       statusCode: 400,
       error: 'Bad Request',
-      message: 'Validation failed',
       issues: this.formatErrors(result.error, value),
     });
   }

@@ -13,6 +13,7 @@ import { GitHubStrategy } from './strategies/github.strategy';
 
 import { RedisModule } from '../redis/redis.module';
 import { UsersModule } from '../users/users.module';
+import { EmailModule } from '../email/email.module';
 
 import { JwtModule } from '@nestjs/jwt';
 
@@ -21,6 +22,7 @@ import { JwtModule } from '@nestjs/jwt';
     PassportModule,
     RedisModule,
     UsersModule,
+    EmailModule,
 
     JwtModule.register({
       secret: process.env.JWT_SECRET,

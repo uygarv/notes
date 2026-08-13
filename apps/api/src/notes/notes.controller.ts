@@ -36,7 +36,7 @@ export class NotesController {
           return {
             status: 404,
             body: {
-              message: 'Note not found',
+              code: 'note_not_found',
             },
           };
         }

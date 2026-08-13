@@ -27,9 +27,9 @@ export class GoogleStrategy extends PassportStrategy(
     const email = profile.emails?.[0]?.value;
 
     if (!email) {
-      throw new UnauthorizedException(
-        'Google account has no email',
-      );
+      throw new UnauthorizedException({
+        code: 'oauth_email_unavailable',
+      });
     }
 
     return {

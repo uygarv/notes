@@ -39,7 +39,7 @@ export class TsRestValidationFilter implements ExceptionFilter {
     );
 
     const body: ValidationErrorResponse = {
-      message: 'Validation failed',
+      code: 'validation_error',
       issues,
     };
 

@@ -17,6 +17,7 @@ export const notesContract = c.router({
     path: '/v1/notes',
     responses: {
       200: z.array(noteSchema),
+      401: errorSchema,
     },
   },
 
@@ -29,6 +30,7 @@ export const notesContract = c.router({
     responses: {
       200: noteSchema,
       404: errorSchema,
+      401: errorSchema,
     },
   },
 
@@ -39,6 +41,7 @@ export const notesContract = c.router({
     responses: {
       201: noteSchema,
       400: validationErrorSchema,
+      401: errorSchema,
     },
   },
 
@@ -52,6 +55,8 @@ export const notesContract = c.router({
     responses: {
       200: noteSchema,
       400: validationErrorSchema,
+      401: errorSchema,
+      404: errorSchema,
     },
   },
 
@@ -63,6 +68,8 @@ export const notesContract = c.router({
     }),
     responses: {
       200: noteSchema,
+      401: errorSchema,
+      404: errorSchema,
     },
   },
 });

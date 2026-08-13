@@ -5,6 +5,7 @@ import {
   identityProviderSchema,
   updateUserSchema,
   validationErrorSchema,
+  errorSchema,
 } from '@notes/schemas';
 
 const c = initContract();
@@ -15,6 +16,7 @@ export const usersContract = c.router({
     path: '/users/me',
     responses: {
       200: userSchema,
+      401: errorSchema,
     },
   },
 
@@ -23,6 +25,7 @@ export const usersContract = c.router({
     path: '/users/me/identities',
     responses: {
       200: identityProviderSchema.array(),
+      401: errorSchema,
     },
   },
 
@@ -33,6 +36,8 @@ export const usersContract = c.router({
     responses: {
       200: userSchema,
       400: validationErrorSchema,
+      401: errorSchema,
+      409: errorSchema,
     },
   },
 });
