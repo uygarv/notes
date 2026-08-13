@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { createUserSchema, loginSchema } from '@notes/schemas';
 import { api, apiUrl, ApiError, unwrap } from '@/lib/api';
-import { queryKeys } from '@/lib/queries';
+import { queryKeys, useCurrentUser } from '@/lib/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { GalleryVerticalEnd, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
+  const user = useCurrentUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -29,6 +30,14 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const isSignup = mode === 'signup';
   const GoogleIcon = oauthProviders.google.Icon;
   const GitHubIcon = oauthProviders.github.Icon;
+
+  useEffect(() => {
+    if (user.data) router.replace('/');
+  }, [router, user.data]);
+
+  if (user.isPending || user.data) {
+    return <main className="grid min-h-svh place-items-center bg-muted/50"><LoaderCircle className="text-muted-foreground size-5 animate-spin" aria-label="Checking your session" /></main>;
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

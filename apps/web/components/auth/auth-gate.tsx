@@ -23,6 +23,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, [pathname, queryClient, router, user.error]);
 
   if (user.isPending) return <WorkspaceSkeleton />;
+  if (user.error instanceof ApiError && user.error.status === 401) return null;
   if (user.error) return <WorkspaceError onRetry={() => user.refetch()} />;
   return <>{children}</>;
 }
