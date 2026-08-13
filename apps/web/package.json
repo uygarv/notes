@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
+    "prebuild": "npm --prefix ../.. run build --workspace=@notes/schemas && npm --prefix ../.. run build --workspace=@notes/contracts",
     "build": "next build --webpack",
     "start": "next start --port 3001",
     "lint": "../../node_modules/.bin/eslint .",
