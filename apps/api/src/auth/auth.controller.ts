@@ -19,6 +19,7 @@ import { OAuthProvider, OAuthStateType } from 'src/constants';
 import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { AuthService } from './auth.service';
 import { isPasswordResetEnabled } from './password-reset.config';
+import { clearSessionCookie, setSessionCookie } from './session-cookie';
 import { OAuthCallbackFailure, OAuthService } from './oauth.service';
 import { OAuthGuard } from './guards/oauth.guard';
 import { toUserResponse } from 'src/mappers/users.mapper';
@@ -38,7 +39,7 @@ export class AuthController {
   ) {
     return tsRestHandler(authContract.login, async () => {
       const result = await this.authService.login(req.user);
-      this.setSessionCookie(response, result.access_token);
+      setSessionCookie(response, result.access_token);
 
       return {
         status: 204,
@@ -74,7 +75,7 @@ export class AuthController {
     return tsRestHandler(authContract.resetPassword, async ({ body }) => {
       this.assertPasswordResetEnabled();
       await this.authService.resetPassword(body.token, body.password);
-      this.clearSessionCookie(response);
+      clearSessionCookie(response);
 
       return { status: 204, body: undefined };
     });
@@ -93,7 +94,7 @@ export class AuthController {
         body.currentPassword,
         body.newPassword,
       );
-      this.setSessionCookie(response, result.access_token);
+      setSessionCookie(response, result.access_token);
 
       return { status: 204, body: undefined };
     });
@@ -153,19 +154,6 @@ export class AuthController {
   @ApiBearerAuth()
   githubLink() {}
 
-  private setSessionCookie(response: Response, token: string) {
-    response.cookie('notes_access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
-        ? { domain: process.env.COOKIE_DOMAIN }
-        : {}),
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-  }
-
   private assertPasswordResetEnabled() {
     if (!isPasswordResetEnabled()) {
       throw new NotFoundException({ code: 'not_found' });
@@ -176,21 +164,9 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async logoutHandler(@Res({ passthrough: true }) response: Response) {
     return tsRestHandler(authContract.logout, async () => {
-      this.clearSessionCookie(response);
+      clearSessionCookie(response);
 
       return { status: 204, body: undefined };
-    });
-  }
-
-  private clearSessionCookie(response: Response) {
-    response.clearCookie('notes_access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
-        ? { domain: process.env.COOKIE_DOMAIN }
-        : {}),
     });
   }
 
@@ -210,7 +186,7 @@ export class AuthController {
       );
 
       if (result.type === 'login') {
-        this.setSessionCookie(response, result.accessToken);
+        setSessionCookie(response, result.accessToken);
         return response.redirect(`${webUrl}/auth/callback`);
       }
 

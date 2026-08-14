@@ -6,9 +6,9 @@ const passwordResetRoutes = new Set(['/forgot-password', '/reset-password']);
 const publicRoutes = new Set([
   '/login',
   '/sign-up',
+  '/auth/callback',
   ...(isForgotPasswordEnabled ? passwordResetRoutes : []),
 ]);
-const signedInRedirectRoutes = new Set(['/login', '/sign-up']);
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -18,13 +18,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(
       new URL(hasSessionCookie ? '/' : '/login', request.url),
     );
-  }
-
-  if (
-    hasSessionCookie &&
-    (signedInRedirectRoutes.has(pathname) || pathname === '/auth/callback')
-  ) {
-    return NextResponse.redirect(new URL('/', request.url));
   }
 
   if (!hasSessionCookie && !publicRoutes.has(pathname)) {
