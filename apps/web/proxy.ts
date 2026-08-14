@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isForgotPasswordEnabled } from '@/lib/features';
 
 const sessionCookie = 'notes_access_token';
-const publicRoutes = new Set(['/login', '/sign-up', '/forgot-password', '/reset-password']);
+const passwordResetRoutes = new Set(['/forgot-password', '/reset-password']);
+const publicRoutes = new Set([
+  '/login',
+  '/sign-up',
+  ...(isForgotPasswordEnabled ? passwordResetRoutes : []),
+]);
 const signedInRedirectRoutes = new Set(['/login', '/sign-up']);
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSessionCookie = Boolean(request.cookies.get(sessionCookie)?.value);
 
-  if (hasSessionCookie && (signedInRedirectRoutes.has(pathname) || pathname === '/auth/callback')) {
+  if (!isForgotPasswordEnabled && passwordResetRoutes.has(pathname)) {
+    return NextResponse.redirect(
+      new URL(hasSessionCookie ? '/' : '/login', request.url),
+    );
+  }
+
+  if (
+    hasSessionCookie &&
+    (signedInRedirectRoutes.has(pathname) || pathname === '/auth/callback')
+  ) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

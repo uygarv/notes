@@ -77,6 +77,18 @@ export class NotesController {
           body: toNoteResponse(note),
         };
       },
+
+      lock: async ({ params, body }) => {
+        const note = await this.notesService.lock(params.id, body, userId);
+
+        return { status: 200, body: toNoteResponse(note) };
+      },
+
+      unlock: async ({ params, body }) => {
+        const note = await this.notesService.unlock(params.id, body, userId);
+
+        return { status: 200, body: toNoteResponse(note) };
+      },
     });
   }
 }

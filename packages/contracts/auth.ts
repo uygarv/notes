@@ -1,6 +1,7 @@
 import { initContract } from '@ts-rest/core';
 import {
   createUserSchema,
+  changePasswordSchema,
   userSchema,
   loginSchema,
   errorSchema,
@@ -41,6 +42,7 @@ export const authContract = c.router({
     responses: {
       204: c.noBody(),
       400: validationErrorSchema,
+      404: errorSchema,
     },
   },
 
@@ -51,6 +53,18 @@ export const authContract = c.router({
     responses: {
       204: c.noBody(),
       400: errorSchema,
+      404: errorSchema,
+    },
+  },
+
+  changePassword: {
+    method: 'POST',
+    path: '/auth/change-password',
+    body: changePasswordSchema,
+    responses: {
+      204: c.noBody(),
+      400: errorSchema,
+      401: errorSchema,
     },
   },
 

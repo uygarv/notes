@@ -1,13 +1,13 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -100,40 +100,139 @@
 }
 
 @layer base {
-  * { @apply border-border outline-ring/50; }
-  body { @apply bg-background text-foreground font-sans antialiased; }
+  html {
+    min-height: 100%;
+    background-color: var(--background);
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  html:not(.dark) {
+    color-scheme: light;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply min-h-svh bg-background text-foreground font-sans antialiased;
+  }
 }
 
 .notes-prose {
   @apply max-w-full min-w-0 overflow-x-hidden text-[15px] leading-6 text-foreground;
 }
-.notes-prose > * + * { margin-top: 0.65em; }
-.notes-prose h1 { @apply mt-6 text-3xl font-semibold tracking-tight; }
-.notes-prose h2 { @apply mt-5 text-2xl font-semibold tracking-tight; }
-.notes-prose h3 { @apply mt-4 text-xl font-semibold tracking-tight; }
-.notes-prose ul { @apply list-disc pl-6; }
-.notes-prose ol { @apply list-decimal pl-6; }
-.notes-prose ul[data-list-style="dash"] { @apply list-none pl-6; }
-.notes-prose ul[data-list-style="dash"] > li { @apply relative; }
-.notes-prose ul[data-list-style="dash"] > li::before { @apply absolute -left-5 content-["—"]; }
-.notes-prose a { @apply cursor-pointer text-primary underline underline-offset-4; }
-.notes-prose code { @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]; }
-.notes-prose pre { @apply overflow-x-auto rounded-md bg-muted p-4 font-mono text-sm leading-6; }
-.notes-prose pre code { @apply bg-transparent p-0 text-inherit; }
-.notes-prose blockquote { @apply border-l-2 border-primary/40 pl-4 italic text-muted-foreground; }
-.notes-prose ul[data-type="taskList"] { @apply list-none pl-0; }
-.notes-prose ul[data-type="taskList"] li { @apply flex items-start gap-2; }
-.notes-prose ul[data-type="taskList"] li > label { @apply mt-1; }
-.notes-prose ul[data-type="taskList"] input[type="checkbox"] { @apply size-4 accent-primary; }
-.notes-prose .tableWrapper { @apply my-4 w-fit max-w-full overflow-x-auto rounded-md border; }
-.notes-prose table { @apply m-0 w-max border-collapse text-sm; }
-.notes-prose th { @apply bg-muted px-3 py-2 text-left font-medium; }
-.notes-prose td { @apply min-w-28 border px-3 py-2 align-top; }
-.notes-prose th { @apply border px-3 py-2; }
-.notes-prose .selectedCell::after { @apply pointer-events-none absolute inset-0 z-10 bg-primary/10 content-['']; }
-.notes-prose .column-resize-handle { @apply pointer-events-none absolute -right-0.5 top-0 h-full w-1 bg-primary; }
-.notes-prose p.is-editor-empty:first-child::before { @apply text-muted-foreground pointer-events-none float-left h-0 content-[attr(data-placeholder)]; }
+
+.rich-text-editor {
+  container-type: inline-size;
+}
+
+.notes-prose > * {
+  scroll-margin-top: 8rem;
+}
+
+@container (max-width: 34rem) {
+  .editor-toolbar__history {
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px solid var(--border);
+    padding-top: 0.25rem;
+  }
+}
+.notes-prose > * + * {
+  margin-top: 0.65em;
+}
+.notes-prose h1 {
+  @apply mt-6 text-3xl font-semibold tracking-tight;
+}
+.notes-prose h2 {
+  @apply mt-5 text-2xl font-semibold tracking-tight;
+}
+.notes-prose h3 {
+  @apply mt-4 text-xl font-semibold tracking-tight;
+}
+.notes-prose ul {
+  @apply list-disc pl-6;
+}
+.notes-prose ol {
+  @apply list-decimal pl-6;
+}
+.notes-prose ul[data-list-style='dash'] {
+  @apply list-none pl-6;
+}
+.notes-prose ul[data-list-style='dash'] > li {
+  @apply relative;
+}
+.notes-prose ul[data-list-style='dash'] > li::before {
+  @apply absolute -left-5 content-["—"];
+}
+.notes-prose a {
+  @apply cursor-pointer text-primary underline underline-offset-4;
+}
+.notes-prose code {
+  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+}
+.notes-prose pre {
+  @apply overflow-x-auto rounded-md bg-muted p-4 font-mono text-sm leading-6;
+}
+.notes-prose pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.notes-prose blockquote {
+  @apply border-l-2 border-primary/40 pl-4 italic text-muted-foreground;
+}
+.notes-prose ul[data-type='taskList'] {
+  @apply list-none pl-0;
+}
+.notes-prose ul[data-type='taskList'] li {
+  @apply flex items-start gap-2;
+}
+.notes-prose ul[data-type='taskList'] li > label {
+  @apply mt-1;
+}
+.notes-prose ul[data-type='taskList'] input[type='checkbox'] {
+  @apply size-4 accent-primary;
+}
+.notes-prose .tableWrapper {
+  @apply my-4 w-fit max-w-full overflow-x-auto rounded-md border;
+}
+.notes-prose table {
+  @apply m-0 w-max border-collapse text-sm;
+}
+.notes-prose th {
+  @apply bg-muted px-3 py-2 text-left font-medium;
+}
+.notes-prose td {
+  @apply min-w-28 border px-3 py-2 align-top;
+}
+.notes-prose th {
+  @apply border px-3 py-2;
+}
+.notes-prose .selectedCell::after {
+  @apply pointer-events-none absolute inset-0 z-10 bg-primary/10 content-[''];
+}
+.notes-prose .column-resize-handle {
+  @apply pointer-events-none absolute -right-0.5 top-0 h-full w-1 bg-primary;
+}
+.notes-prose p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground pointer-events-none float-left h-0 content-[attr(data-placeholder)];
+}
+
+.tag-filter-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tag-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  NotFoundException,
   Query,
   Request,
   Res,
@@ -15,7 +16,9 @@ import { authContract } from '@notes/contracts';
 import { errorCodeSchema, type ErrorCode } from '@notes/schemas';
 
 import { OAuthProvider, OAuthStateType } from 'src/constants';
+import { CurrentUserId } from 'src/common/decorators/current-user-id.decorator';
 import { AuthService } from './auth.service';
+import { isPasswordResetEnabled } from './password-reset.config';
 import { OAuthCallbackFailure, OAuthService } from './oauth.service';
 import { OAuthGuard } from './guards/oauth.guard';
 import { toUserResponse } from 'src/mappers/users.mapper';
@@ -29,7 +32,10 @@ export class AuthController {
 
   @TsRestHandler(authContract.login)
   @UseGuards(AuthGuard('local'))
-  async loginHandler(@Request() req, @Res({ passthrough: true }) response: Response) {
+  async loginHandler(
+    @Request() req,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     return tsRestHandler(authContract.login, async () => {
       const result = await this.authService.login(req.user);
       this.setSessionCookie(response, result.access_token);
@@ -44,10 +50,7 @@ export class AuthController {
   @TsRestHandler(authContract.signUp)
   async signUpHandler() {
     return tsRestHandler(authContract.signUp, async ({ body }) => {
-      const user = await this.authService.createUser(
-        body.email,
-        body.password,
-      );
+      const user = await this.authService.createUser(body.email, body.password);
 
       return {
         status: 201,
@@ -59,6 +62,7 @@ export class AuthController {
   @TsRestHandler(authContract.forgotPassword)
   async forgotPasswordHandler() {
     return tsRestHandler(authContract.forgotPassword, async ({ body }) => {
+      this.assertPasswordResetEnabled();
       await this.authService.requestPasswordReset(body.email);
 
       return { status: 204, body: undefined };
@@ -68,6 +72,7 @@ export class AuthController {
   @TsRestHandler(authContract.resetPassword)
   async resetPasswordHandler(@Res({ passthrough: true }) response: Response) {
     return tsRestHandler(authContract.resetPassword, async ({ body }) => {
+      this.assertPasswordResetEnabled();
       await this.authService.resetPassword(body.token, body.password);
       this.clearSessionCookie(response);
 
@@ -75,8 +80,27 @@ export class AuthController {
     });
   }
 
+  @TsRestHandler(authContract.changePassword)
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async changePasswordHandler(
+    @CurrentUserId() userId: number,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return tsRestHandler(authContract.changePassword, async ({ body }) => {
+      const result = await this.authService.changePassword(
+        userId,
+        body.currentPassword,
+        body.newPassword,
+      );
+      this.setSessionCookie(response, result.access_token);
+
+      return { status: 204, body: undefined };
+    });
+  }
+
   @Get('auth/google')
-  @UseGuards(OAuthGuard('google', OAuthProvider.GOOGLE,OAuthStateType.LOGIN))
+  @UseGuards(OAuthGuard('google', OAuthProvider.GOOGLE, OAuthStateType.LOGIN))
   googleLogin() {}
 
   @Get('auth/google/callback')
@@ -95,12 +119,15 @@ export class AuthController {
   }
 
   @Get('auth/google/link')
-  @UseGuards(AuthGuard('jwt'),OAuthGuard('google',OAuthProvider.GOOGLE,OAuthStateType.LINK))
+  @UseGuards(
+    AuthGuard('jwt'),
+    OAuthGuard('google', OAuthProvider.GOOGLE, OAuthStateType.LINK),
+  )
   @ApiBearerAuth()
   async googleLink() {}
 
   @Get('auth/github')
-  @UseGuards(OAuthGuard('github',OAuthProvider.GITHUB,OAuthStateType.LOGIN))
+  @UseGuards(OAuthGuard('github', OAuthProvider.GITHUB, OAuthStateType.LOGIN))
   githubLogin() {}
 
   @Get('auth/github/callback')
@@ -119,7 +146,10 @@ export class AuthController {
   }
 
   @Get('auth/github/link')
-  @UseGuards(AuthGuard('jwt'),OAuthGuard('github',OAuthProvider.GITHUB,OAuthStateType.LINK))
+  @UseGuards(
+    AuthGuard('jwt'),
+    OAuthGuard('github', OAuthProvider.GITHUB, OAuthStateType.LINK),
+  )
   @ApiBearerAuth()
   githubLink() {}
 
@@ -136,6 +166,12 @@ export class AuthController {
     });
   }
 
+  private assertPasswordResetEnabled() {
+    if (!isPasswordResetEnabled()) {
+      throw new NotFoundException({ code: 'not_found' });
+    }
+  }
+
   @TsRestHandler(authContract.logout)
   @UseGuards(AuthGuard('jwt'))
   async logoutHandler(@Res({ passthrough: true }) response: Response) {
@@ -148,13 +184,13 @@ export class AuthController {
 
   private clearSessionCookie(response: Response) {
     response.clearCookie('notes_access_token', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
-          ? { domain: process.env.COOKIE_DOMAIN }
-          : {}),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      ...(process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN
+        ? { domain: process.env.COOKIE_DOMAIN }
+        : {}),
     });
   }
 
@@ -180,11 +216,15 @@ export class AuthController {
 
       return response.redirect(`${webUrl}/settings?linked=${provider}`);
     } catch (error) {
-      const callbackFailure = error instanceof OAuthCallbackFailure ? error : null;
+      const callbackFailure =
+        error instanceof OAuthCallbackFailure ? error : null;
       const originalError = callbackFailure?.originalError ?? error;
-      const status = typeof originalError === 'object' && originalError && 'getStatus' in originalError
-        ? (originalError as { getStatus(): number }).getStatus()
-        : 500;
+      const status =
+        typeof originalError === 'object' &&
+        originalError &&
+        'getStatus' in originalError
+          ? (originalError as { getStatus(): number }).getStatus()
+          : 500;
       const code = this.getOAuthErrorCode(originalError, status);
 
       if (callbackFailure?.stateType === OAuthStateType.LINK) {
@@ -196,7 +236,12 @@ export class AuthController {
   }
 
   private getOAuthErrorCode(error: unknown, status: number): ErrorCode {
-    if (typeof error === 'object' && error && 'getResponse' in error && typeof error.getResponse === 'function') {
+    if (
+      typeof error === 'object' &&
+      error &&
+      'getResponse' in error &&
+      typeof error.getResponse === 'function'
+    ) {
       const body = error.getResponse();
       if (typeof body === 'object' && body && 'code' in body) {
         const code = errorCodeSchema.safeParse(body.code);

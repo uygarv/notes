@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { identityProviderSchema, noteSchema, tagSchema, userSchema, type CreateNote, type CreateTag, type Note, type Tag, type UpdateNote, type UpdateTag, type UpdateUser, type User } from '@notes/schemas';
+import { identityProviderSchema, noteSchema, tagSchema, userSchema, type ChangePassword, type CreateNote, type CreateTag, type LockNote, type Note, type Tag, type UnlockNote, type UpdateNote, type UpdateTag, type UpdateUser, type User } from '@notes/schemas';
 import { api, ApiError, unwrap } from '@/lib/api';
 
 export const queryKeys = {
@@ -43,6 +43,16 @@ export function useCreateNote() {
   });
 }
 
+export function useChangePassword() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: ChangePassword) => unwrap(await api.auth.changePassword({ body })),
+    onSuccess: () => client.setQueryData<User>(queryKeys.me, (user) => user
+      ? { ...user, hasPassword: true }
+      : user),
+  });
+}
+
 export function useUpdateNote() {
   const client = useQueryClient();
   return useMutation({
@@ -62,6 +72,22 @@ export function useUpdateNote() {
     onError: (_error, _variables, context) => client.setQueryData(queryKeys.notes, context?.previous),
     onSuccess: (note) => client.setQueryData<Note[]>(queryKeys.notes, (notes = []) => notes.map((item) => item.id === note.id ? note : item)),
     onSettled: () => client.invalidateQueries({ queryKey: queryKeys.notes }),
+  });
+}
+
+export function useLockNote() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: LockNote }) => noteSchema.parse(unwrap(await api.notes.lock({ params: { id }, body }))),
+    onSuccess: (note) => client.setQueryData<Note[]>(queryKeys.notes, (notes = []) => notes.map((item) => item.id === note.id ? note : item)),
+  });
+}
+
+export function useUnlockNote() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: UnlockNote }) => noteSchema.parse(unwrap(await api.notes.unlock({ params: { id }, body }))),
+    onSuccess: (note) => client.setQueryData<Note[]>(queryKeys.notes, (notes = []) => notes.map((item) => item.id === note.id ? note : item)),
   });
 }
 

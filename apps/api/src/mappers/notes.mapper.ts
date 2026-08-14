@@ -10,10 +10,19 @@ type NoteWithTags = Prisma.NoteGetPayload<{
 }>;
 
 export function toNoteResponse(note: NoteWithTags): Note {
-  const { userId: _, tags, ...response } = note;
+  const {
+    userId: _,
+    tags,
+    contentEncryptionSalt,
+    contentEncryptionIv,
+    ...response
+  } = note;
 
   return {
     ...response,
+    ...(note.isLocked && contentEncryptionSalt && contentEncryptionIv
+      ? { contentEncryptionSalt, contentEncryptionIv }
+      : {}),
     tags: toTagResponses(tags),
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),

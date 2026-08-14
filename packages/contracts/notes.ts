@@ -4,6 +4,8 @@ import { z } from 'zod';
 import {
   createNoteSchema,
   updateNoteSchema,
+  lockNoteSchema,
+  unlockNoteSchema,
   noteSchema,
   validationErrorSchema,
   errorSchema
@@ -71,5 +73,21 @@ export const notesContract = c.router({
       401: errorSchema,
       404: errorSchema,
     },
+  },
+
+  lock: {
+    method: 'POST',
+    path: '/v1/notes/:id/lock',
+    pathParams: z.object({ id: z.coerce.number() }),
+    body: lockNoteSchema,
+    responses: { 200: noteSchema, 400: validationErrorSchema, 401: errorSchema, 404: errorSchema },
+  },
+
+  unlock: {
+    method: 'POST',
+    path: '/v1/notes/:id/unlock',
+    pathParams: z.object({ id: z.coerce.number() }),
+    body: unlockNoteSchema,
+    responses: { 200: noteSchema, 400: validationErrorSchema, 401: errorSchema, 404: errorSchema },
   },
 });

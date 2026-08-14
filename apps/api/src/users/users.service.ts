@@ -55,9 +55,6 @@ export class UsersService {
     async findById(userId: number) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            omit: {
-                password: true,
-            },
         });
 
         if (!user) {
@@ -86,9 +83,6 @@ export class UsersService {
                     data: {
                         ...data,
                         username,
-                    },
-                    omit: {
-                        password: true,
                     },
                 });
             } catch (error) {
@@ -124,9 +118,6 @@ export class UsersService {
         return this.prisma.user.update({
             where: { id: userId },
             data: user,
-            omit: {
-                password: true,
-            },
         })
     }
 
@@ -166,12 +157,59 @@ export class UsersService {
     }
 
     async resetPassword(userId: number, password: string) {
-        const hash = await bcrypt.hash(password, 10);
+      const hash = await bcrypt.hash(password, 10);
 
         return this.prisma.user.update({
             where: { id: userId },
             data: {
                 password: hash,
+                tokenVersion: { increment: 1 },
+            },
+            omit: {
+                password: true,
+            },
+        });
+    }
+
+    async changePassword(userId: number, currentPassword: string | undefined, newPassword: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                password: true,
+            },
+        });
+
+        if (!user) {
+            throw new UnauthorizedException({ code: 'unauthorized' });
+        }
+
+        if (!user.password) {
+            return this.prisma.user.update({
+                where: { id: userId },
+                data: {
+                    password: await bcrypt.hash(newPassword, 10),
+                    tokenVersion: { increment: 1 },
+                },
+                omit: {
+                    password: true,
+                },
+            });
+        }
+
+        if (!currentPassword || !await bcrypt.compare(currentPassword, user.password)) {
+            throw new UnauthorizedException({ code: 'current_password_invalid' });
+        }
+
+        if (await bcrypt.compare(newPassword, user.password)) {
+            throw new BadRequestException({ code: 'password_unchanged' });
+        }
+
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                password: await bcrypt.hash(newPassword, 10),
                 tokenVersion: { increment: 1 },
             },
             omit: {

@@ -4,6 +4,7 @@ export const userSchema = z.object({
   id: z.number(),
   email: z.string().email(),
   username: z.string().nullable(),
+  hasPassword: z.boolean(),
   createdAt: z.string(),
 });
 

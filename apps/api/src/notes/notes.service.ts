@@ -4,7 +4,7 @@ import { CreateNoteDto } from './dto/create-note.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { UpdateNoteDto } from './dto/update-note.dto';
 
-import { type CreateNote, type UpdateNote } from '@notes/schemas';
+import { type CreateNote, type LockNote, type UnlockNote, type UpdateNote } from '@notes/schemas';
 
 @Injectable()
 export class NotesService {
@@ -102,4 +102,28 @@ export class NotesService {
         },
     });
     }
+
+  async lock(id: number, lockNote: LockNote, userId: number) {
+    return this.prisma.note.update({
+      where: { id, userId },
+      data: {
+        ...lockNote,
+        isLocked: true,
+      },
+      include: { tags: true },
+    });
+  }
+
+  async unlock(id: number, unlockNote: UnlockNote, userId: number) {
+    return this.prisma.note.update({
+      where: { id, userId },
+      data: {
+        content: unlockNote.content,
+        isLocked: false,
+        contentEncryptionSalt: null,
+        contentEncryptionIv: null,
+      },
+      include: { tags: true },
+    });
+  }
 }

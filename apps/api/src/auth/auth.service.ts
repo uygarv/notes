@@ -88,6 +88,16 @@ export class AuthService {
     await this.usersService.resetPassword(Number(userId), password);
   }
 
+  async changePassword(userId: number, currentPassword: string | undefined, newPassword: string) {
+    const user = await this.usersService.changePassword(
+      userId,
+      currentPassword,
+      newPassword,
+    );
+
+    return this.login(user);
+  }
+
   private hashValue(value: string) {
     return createHash('sha256').update(value).digest('hex');
   }
