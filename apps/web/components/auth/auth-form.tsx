@@ -54,7 +54,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
 
   if (user.isPending || user.data) {
     return (
-      <main className="grid min-h-svh place-items-center bg-muted/50">
+      <main className="grid min-h-svh place-items-center bg-background">
         <LoaderCircle
           className="text-muted-foreground size-5 animate-spin"
           aria-label="Checking your session"
@@ -105,7 +105,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   }
 
   return (
-    <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-6 md:p-10">
+    <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>

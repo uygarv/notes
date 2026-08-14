@@ -15,7 +15,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { motion } from 'motion/react';
 
 function AuthPage({ children }: { children: React.ReactNode }) {
-  return <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-6 md:p-10"><div className="absolute right-4 top-4"><ThemeToggle /></div><motion.div initial={{ opacity: 0, y: 16, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="flex w-full max-w-sm flex-col gap-6"><Link href="/" className="flex items-center gap-2 self-center font-medium"><span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground"><GalleryVerticalEnd className="size-4" /></span>Notes</Link>{children}</motion.div></main>;
+  return <main className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10"><div className="absolute right-4 top-4"><ThemeToggle /></div><motion.div initial={{ opacity: 0, y: 16, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="flex w-full max-w-sm flex-col gap-6"><Link href="/" className="flex items-center gap-2 self-center font-medium"><span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground"><GalleryVerticalEnd className="size-4" /></span>Notes</Link>{children}</motion.div></main>;
 }
 
 export function ForgotPasswordForm() {
