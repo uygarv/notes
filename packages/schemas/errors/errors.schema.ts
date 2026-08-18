@@ -25,6 +25,14 @@ export const errorCodeSchema = z.enum([
   'oauth_provider_invalid',
   'oauth_email_unavailable',
   'oauth_failed',
+  'share_unavailable',
+  'share_expired',
+  'note_not_shareable',
+  'collaborator_exists',
+  'collaborator_not_found',
+  'collaboration_required',
+  'profile_image_storage_unavailable',
+  'profile_image_upload_invalid',
 ]);
 
 export const errorMessages = {
@@ -52,6 +60,14 @@ export const errorMessages = {
   oauth_provider_invalid: 'That sign-in provider did not match your request. Please try again.',
   oauth_email_unavailable: 'Your provider did not share an email address. Use another sign-in method.',
   oauth_failed: 'That sign-in could not be completed. Please try again or use your password.',
+  share_unavailable: 'This share link is unavailable.',
+  share_expired: 'This share link has expired.',
+  note_not_shareable: 'Locked notes cannot be shared.',
+  collaborator_exists: 'That user already has access to this note.',
+  collaborator_not_found: 'That collaborator no longer has access to this note.',
+  collaboration_required: 'This shared note must be edited in the live editor.',
+  profile_image_storage_unavailable: 'Profile image uploads are not configured yet.',
+  profile_image_upload_invalid: 'That profile image could not be verified. Try uploading it again.',
 } as const;
 
 export const errorSchema = z.object({

@@ -109,6 +109,12 @@ export class AuthService {
     );
 
     if (identity) {
+        if (profile.profileImageUrl) {
+          await this.usersService.setOAuthProfileImageIfEmpty(
+            identity.user.id,
+            profile.profileImageUrl,
+          );
+        }
         return identity.user;
     }
 
@@ -127,6 +133,7 @@ export class AuthService {
         email: profile.email,
         provider: profile.provider,
         providerId: profile.providerId,
+        profileImageUrl: profile.profileImageUrl,
     });
   }
   async linkOAuthAccount(userId: number, profile: OAuthProfile) {

@@ -13,9 +13,11 @@ model Note {
   id        Int      @id @default(autoincrement())
   title     String
   content   String
+  visibility NoteVisibility @default(PRIVATE)
   isLocked  Boolean  @default(false)
   contentEncryptionSalt String?
   contentEncryptionIv   String?
+  collaborationState Bytes?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23,6 +25,43 @@ model Note {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   tags Tag[]
+  shareLink NoteShareLink?
+  collaborators NoteCollaborator[]
+}
+
+enum NoteVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum NoteCollaboratorRole {
+  VIEWER
+  EDITOR
+}
+
+model NoteShareLink {
+  id        Int      @id @default(autoincrement())
+  token     String?
+  tokenHash String   @unique
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  noteId Int  @unique
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model NoteCollaborator {
+  noteId Int
+  userId Int
+  role   NoteCollaboratorRole
+  createdAt DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, userId])
+  @@index([userId])
 }
 
 model Tag {
@@ -43,10 +82,12 @@ model User {
   createdAt  DateTime   @default(now())
 
   username   String?    @unique
+  profileImageUrl String?
 
   identities Identity[]
   notes      Note[]
   tags       Tag[]
+  sharedNotes NoteCollaborator[]
 }
 
 model Identity {

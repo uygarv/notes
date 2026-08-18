@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowLeft,
   Check,
+  Eye,
+  EyeOff,
   LoaderCircle,
   LockKeyhole,
   LockKeyholeOpen,
@@ -13,6 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Note, Tag as NoteTag } from '@notes/schemas';
 import { createNoteSchema, createTagSchema } from '@notes/schemas';
 import {
@@ -22,6 +33,8 @@ import {
   useTags,
   useUnlockNote,
   useUpdateNote,
+  useCurrentUser,
+  queryKeys,
 } from '@/lib/queries';
 import { useUiStore } from '@/lib/store';
 import { formatApiError, toPlainText } from '@/lib/utils';
@@ -29,6 +42,12 @@ import { decryptNoteContent, encryptNoteContent } from '@/lib/note-crypto';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RichTextEditor } from '@/components/notes/rich-text-editor';
+import { ShareDialog } from '@/components/notes/share-dialog';
+import {
+  AvatarGroup,
+  AvatarGroupCount,
+} from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/users/user-avatar';
 
 type EditorProps = {
   note: Note | null;
@@ -44,19 +63,44 @@ type NoteFields = {
 };
 
 const editorTransition = { duration: 0.14, ease: [0.22, 1, 0.36, 1] } as const;
+const collaboratorNamesStorageKey = 'notes:show-collaborator-names';
 
 function persistedTitle(title: string) {
   return title.trim() || 'Untitled note';
+}
+
+function collaboratorColor(userId: number) {
+  const hue = ((userId * 137.508) % 360) / 360;
+  const saturation = 0.72;
+  const lightness = 0.45;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const segment = (hue * 6) % 2;
+  const match = chroma * (1 - Math.abs(segment - 1));
+  const [red, green, blue] = [
+    [chroma, match, 0],
+    [match, chroma, 0],
+    [0, chroma, match],
+    [0, match, chroma],
+    [match, 0, chroma],
+    [chroma, 0, match],
+  ][Math.floor(hue * 6)];
+  const offset = lightness - chroma / 2;
+  return `#${[red, green, blue]
+    .map((channel) => Math.round((channel + offset) * 255).toString(16).padStart(2, '0'))
+    .join('')}`;
 }
 
 export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
   const draft = useUiStore((state) => state.draft);
   const updateDraft = useUiStore((state) => state.updateDraft);
   const clearDraft = useUiStore((state) => state.clearDraft);
+  const selectNote = useUiStore((state) => state.selectNote);
+  const queryClient = useQueryClient();
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
   const lockNote = useLockNote();
   const unlockNote = useUnlockNote();
+  const currentUser = useCurrentUser();
   const tags = useTags();
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(
@@ -73,22 +117,168 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
   const [lockFormOpen, setLockFormOpen] = useState(false);
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState('');
+  const [activeEditors, setActiveEditors] = useState<
+    { id: number; name: string; profileImageUrl?: string | null }[]
+  >([]);
+  const presenceClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showCollaboratorNames, setShowCollaboratorNames] = useState(true);
+  const [isLiveSessionActive, setIsLiveSessionActive] = useState(false);
+  const noteId = note?.id;
+  const isOwner = !note || note.access.role === 'owner';
+  const isReadOnly = Boolean(note && note.access.role === 'viewer');
+  const isLiveCollaborative = Boolean(
+    note?.access.isCollaborative && !isReadOnly && currentUser.data,
+  );
+  const hasActiveCollaboration =
+    isLiveSessionActive && activeEditors.length > 0;
+  const connectedEditors = useMemo(
+    () =>
+      isLiveSessionActive && currentUser.data
+        ? [
+            {
+              id: currentUser.data.id,
+              name: currentUser.data.username ?? 'You',
+              profileImageUrl: currentUser.data.profileImageUrl,
+              isCurrentUser: true,
+            },
+            ...activeEditors.map((editor) => ({ ...editor, isCurrentUser: false })),
+          ]
+        : activeEditors.map((editor) => ({ ...editor, isCurrentUser: false })),
+    [activeEditors, currentUser.data, isLiveSessionActive],
+  );
+  const collaborationNoteId = noteId;
+  const onPresenceChange = useCallback(
+    (users: { id: number; name: string; profileImageUrl?: string | null }[]) => {
+      const otherEditors = users.filter(
+        (user) => user.id !== currentUser.data?.id,
+      );
+      if (otherEditors.length) {
+        if (presenceClearTimer.current)
+          clearTimeout(presenceClearTimer.current);
+        presenceClearTimer.current = null;
+        setActiveEditors(otherEditors);
+        return;
+      }
+      if (presenceClearTimer.current) clearTimeout(presenceClearTimer.current);
+      presenceClearTimer.current = setTimeout(() => {
+        setActiveEditors([]);
+        presenceClearTimer.current = null;
+      }, 1_500);
+    },
+    [currentUser.data?.id],
+  );
+  useEffect(
+    () => () => {
+      if (presenceClearTimer.current) clearTimeout(presenceClearTimer.current);
+    },
+    [],
+  );
+  const onCollaborationAccessRevoked = useCallback(
+    (removeNote: boolean) => {
+      if (removeNote && noteId) {
+        queryClient.setQueryData<Note[]>(queryKeys.notes, (notes = []) =>
+          notes.filter((item) => item.id !== noteId),
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notes });
+      selectNote(null);
+    },
+    [noteId, queryClient, selectNote],
+  );
+  const onLiveStatusChange = useCallback((isLive: boolean) => {
+    setIsLiveSessionActive(isLive);
+  }, []);
+  const toggleCollaboratorNames = useCallback(() => {
+    setShowCollaboratorNames((show) => {
+      const next = !show;
+      window.localStorage.setItem(collaboratorNamesStorageKey, String(next));
+      return next;
+    });
+  }, []);
+  const syncCollaborativeNoteCache = useCallback(
+    (nextTitle: string, nextContent: string) => {
+      if (!note?.access.isCollaborative) return;
+      const updateCachedNote = (item: Note): Note => ({
+        ...item,
+        title: nextTitle,
+        content: nextContent,
+      });
+      queryClient.setQueryData<Note[]>(queryKeys.notes, (notes = []) =>
+        notes.map((item) =>
+          item.id === note.id ? updateCachedNote(item) : item,
+        ),
+      );
+      queryClient.setQueryData<Note>(queryKeys.note(note.id), (item) =>
+        item
+          ? {
+              ...item,
+              title: nextTitle,
+              content: nextContent,
+            }
+          : item,
+      );
+    },
+    [note, queryClient],
+  );
+  const collaborationOptions = useMemo(
+    () =>
+      isLiveCollaborative && currentUser.data && collaborationNoteId
+        ? {
+            noteId: collaborationNoteId,
+            user: {
+              id: currentUser.data.id,
+              name: currentUser.data.username ?? 'Notes user',
+              color: collaboratorColor(currentUser.data.id),
+              profileImageUrl: currentUser.data.profileImageUrl,
+            },
+            onPresenceChange,
+            onAccessRevoked: onCollaborationAccessRevoked,
+            onLiveStatusChange,
+            showUsernames: showCollaboratorNames,
+          }
+        : undefined,
+    [
+      collaborationNoteId,
+      currentUser.data,
+      isLiveCollaborative,
+      onPresenceChange,
+      onCollaborationAccessRevoked,
+      onLiveStatusChange,
+      showCollaboratorNames,
+    ],
+  );
+
   const passwordRef = useRef<string | null>(null);
   const lastSaved = useRef(
     note
       ? JSON.stringify({
           title: note.title,
-          content: note.content,
           tags: note.tags.map((tag) => tag.id),
+          ...(!note.access.isCollaborative && { content: note.content }),
         })
       : '',
   );
   const lastCreateAttempt = useRef('');
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(collaboratorNamesStorageKey);
+    if (stored !== null) setShowCollaboratorNames(stored === 'true');
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === collaboratorNamesStorageKey)
+        setShowCollaboratorNames(event.newValue !== 'false');
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  useEffect(() => {
     if (!note || !dirty || !toPlainText(content)) return;
 
-    const payload = { title: persistedTitle(title), content, tags: tagIds };
+    const payload = {
+      title: persistedTitle(title),
+      tags: tagIds,
+      ...(!note.access.isCollaborative && { content }),
+    };
     const serialized = JSON.stringify(payload);
     if (serialized === lastSaved.current) return;
 
@@ -112,9 +302,11 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
             id: note.id,
             body: {
               title: persistedTitle(title),
-              content: encrypted.content,
-              tags: tagIds,
-              ...(encrypted.contentEncryptionIv
+              ...(!note.access.isCollaborative && {
+                content: encrypted.content,
+              }),
+              ...(isOwner && { tags: tagIds }),
+              ...(!note.access.isCollaborative && encrypted.contentEncryptionIv
                 ? { contentEncryptionIv: encrypted.contentEncryptionIv }
                 : {}),
             },
@@ -131,7 +323,15 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [content, dirty, note, tagIds, title, updateNote]);
+  }, [
+    content,
+    dirty,
+    isOwner,
+    note,
+    tagIds,
+    title,
+    updateNote,
+  ]);
 
   useEffect(() => {
     if (!draft || !toPlainText(content) || createNote.isPending) return;
@@ -174,6 +374,7 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
     if (draft) {
       updateDraft({ title: nextTitle, content: nextContent, tags: nextTags });
     } else {
+      syncCollaborativeNoteCache(nextTitle, nextContent);
       setDirty(true);
     }
   }
@@ -327,6 +528,7 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
   const lockControls =
     !isDraft &&
     note &&
+    isOwner &&
     (note.isLocked ? (
       <Button
         variant="ghost"
@@ -442,10 +644,10 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
       initial={{ opacity: 0, y: 14, filter: 'blur(3px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={editorTransition}
-      className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1 flex-col"
+      className={`note-editor flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1 flex-col ${isOwner ? '' : 'note-editor--editor'}`}
     >
-      <header className="flex min-h-14 items-center justify-between border-b px-4 sm:px-6">
-        <div className="text-muted-foreground flex items-center gap-2 text-xs">
+      <header className="note-editor-header flex min-h-14 flex-wrap items-center gap-x-3 border-b px-4 sm:px-6">
+        <div className="text-muted-foreground mr-auto flex items-center gap-2 text-xs">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -474,7 +676,79 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
             )}
           </AnimatePresence>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1 py-1">
+          <AnimatePresence initial={false}>
+            {hasActiveCollaboration && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, x: 6 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.96, x: 6 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="collaboration-header-controls flex shrink-0 items-center gap-1"
+              >
+                <Tooltip.Provider delayDuration={180}>
+                  <AvatarGroup
+                    className="mr-1 flex"
+                    aria-label={`${connectedEditors.length} editor${connectedEditors.length === 1 ? '' : 's'} connected`}
+                  >
+                    {connectedEditors.slice(0, 3).map((editor) => (
+                      <Tooltip.Root key={editor.id}>
+                        <Tooltip.Trigger asChild>
+                          <span className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            <UserAvatar name={editor.name} imageUrl={editor.profileImageUrl} />
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Portal>
+                          <Tooltip.Content
+                            side="bottom"
+                            sideOffset={8}
+                            className="z-50 rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
+                          >
+                            <span className="font-medium">
+                              {editor.isCurrentUser ? 'You' : editor.name}
+                            </span>
+                            <span className="text-muted-foreground ml-1.5">
+                              Connected
+                            </span>
+                            <Tooltip.Arrow className="fill-border" />
+                          </Tooltip.Content>
+                        </Tooltip.Portal>
+                      </Tooltip.Root>
+                    ))}
+                    {connectedEditors.length > 3 && (
+                      <AvatarGroupCount>+{connectedEditors.length - 3}</AvatarGroupCount>
+                    )}
+                  </AvatarGroup>
+                </Tooltip.Provider>
+                <span className="mr-1 hidden items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-700 sm:inline-flex dark:text-emerald-400">
+                  Live
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleCollaboratorNames}
+                  aria-label={
+                    showCollaboratorNames
+                      ? 'Hide collaborator names'
+                      : 'Show collaborator names'
+                  }
+                  title={
+                    showCollaboratorNames
+                      ? 'Hide collaborator names'
+                      : 'Show collaborator names'
+                  }
+                >
+                  {showCollaboratorNames ? <Eye /> : <EyeOff />}
+                  Names
+                </Button>
+                <span
+                  aria-hidden
+                  className="collaboration-action-separator mx-1 h-5 w-px bg-border"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {!isDraft && note && isOwner && <ShareDialog note={note} />}
           {lockControls}
           {isDraft ? (
             <Button
@@ -487,7 +761,7 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
             >
               <X /> Discard
             </Button>
-          ) : (
+          ) : isOwner ? (
             <Button
               variant="ghost"
               size="sm"
@@ -496,9 +770,68 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
             >
               <Trash2 /> Delete
             </Button>
-          )}
+          ) : null}
         </div>
       </header>
+      <AnimatePresence initial={false}>
+        {hasActiveCollaboration && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.16, ease: 'easeOut' }}
+            className="collaboration-overflow-frame"
+          >
+            <Tooltip.Provider delayDuration={180}>
+              <AvatarGroup
+                className="mr-1 flex"
+                aria-label={`${connectedEditors.length} editor${connectedEditors.length === 1 ? '' : 's'} connected`}
+              >
+                {connectedEditors.slice(0, 3).map((editor) => (
+                  <Tooltip.Root key={editor.id}>
+                    <Tooltip.Trigger asChild>
+                      <span className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <UserAvatar name={editor.name} imageUrl={editor.profileImageUrl} />
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        side="bottom"
+                        sideOffset={8}
+                        className="z-50 rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
+                      >
+                        <span className="font-medium">
+                          {editor.isCurrentUser ? 'You' : editor.name}
+                        </span>
+                        <span className="text-muted-foreground ml-1.5">
+                          Connected
+                        </span>
+                        <Tooltip.Arrow className="fill-border" />
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                ))}
+                {connectedEditors.length > 3 && (
+                  <AvatarGroupCount>+{connectedEditors.length - 3}</AvatarGroupCount>
+                )}
+              </AvatarGroup>
+            </Tooltip.Provider>
+            <span className="mr-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              Live
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleCollaboratorNames}
+              aria-label={showCollaboratorNames ? 'Hide collaborator names' : 'Show collaborator names'}
+              title={showCollaboratorNames ? 'Hide collaborator names' : 'Show collaborator names'}
+            >
+              {showCollaboratorNames ? <Eye /> : <EyeOff />}
+              Names
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {lockPasswordPanel}
       {lockError && !lockFormOpen && (
         <p
@@ -515,16 +848,26 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
             onChange={(event) => updateField({ title: event.target.value })}
             placeholder="Untitled note"
             aria-label="Note title"
+            readOnly={isReadOnly}
             className="h-auto border-0 bg-transparent px-0 py-1 text-4xl font-semibold tracking-tight shadow-none placeholder:text-muted-foreground/70 focus-visible:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:focus-visible:bg-transparent md:text-[2.5rem] lg:text-4xl"
           />
-          <TagSelector
-            tags={tags.data ?? []}
-            selectedIds={tagIds}
-            onChange={(nextTagIds) => updateField({ tags: nextTagIds })}
-          />
+          {isOwner && (
+            <TagSelector
+              tags={tags.data ?? []}
+              selectedIds={tagIds}
+              onChange={(nextTagIds) => updateField({ tags: nextTagIds })}
+            />
+          )}
           <RichTextEditor
+            key={
+              note?.access.isCollaborative
+                ? `collaboration-${note.id}-${collaborationOptions?.user.id ?? 'loading'}`
+                : `editor-${note?.id ?? 'draft'}`
+            }
             content={content}
             onChange={(nextContent) => updateField({ content: nextContent })}
+            editable={!isReadOnly}
+            collaboration={collaborationOptions}
           />
           {isDraft && !toPlainText(content) && (
             <p className="text-muted-foreground mt-4 text-xs">

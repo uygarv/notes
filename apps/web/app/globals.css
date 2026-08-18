@@ -119,11 +119,50 @@
 }
 
 .notes-prose {
-  @apply max-w-full min-w-0 overflow-x-hidden text-[15px] leading-6 text-foreground;
+  @apply relative max-w-full min-w-0 overflow-x-hidden text-[15px] leading-6 text-foreground;
+}
+
+/* The collaboration extension owns the ProseMirror document, so style that
+   element directly instead of relying on extension-specific wrapper markup. */
+.rich-text-editor .ProseMirror,
+.rich-text-editor .notes-prose {
+  font-size: 15px;
+  line-height: 1.5rem;
+}
+
+.rich-text-editor .ProseMirror > p,
+.rich-text-editor .notes-prose > p {
+  margin-block: 0;
+}
+
+.rich-text-editor .ProseMirror > p + p,
+.rich-text-editor .notes-prose > p + p {
+  margin-top: 0.65em;
 }
 
 .rich-text-editor {
   container-type: inline-size;
+}
+
+.note-editor-header {
+  container-type: inline-size;
+}
+
+.note-editor {
+  container-type: inline-size;
+}
+
+.collaboration-overflow-frame {
+  display: none;
+}
+
+.rich-text-editor .ProseMirror.notes-prose {
+  padding-top: 0.5rem;
+  transition: padding 200ms ease-out;
+}
+
+.rich-text-editor.show-collaboration-gutter .ProseMirror.notes-prose {
+  padding-top: 2.5rem;
 }
 
 .notes-prose > * {
@@ -136,6 +175,32 @@
     justify-content: flex-end;
     border-top: 1px solid var(--border);
     padding-top: 0.25rem;
+  }
+}
+
+@container (max-width: 46rem) {
+  .collaboration-header-controls {
+    display: none;
+  }
+
+  .collaboration-overflow-frame {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    padding: 0.35rem 1rem;
+  }
+}
+
+@container (min-width: 30rem) {
+  .note-editor--editor .collaboration-header-controls {
+    display: flex;
+  }
+
+  .note-editor--editor .collaboration-overflow-frame {
+    display: none;
   }
 }
 .notes-prose > * + * {
@@ -215,6 +280,121 @@
 }
 .notes-prose p.is-editor-empty:first-child::before {
   @apply text-muted-foreground pointer-events-none float-left h-0 content-[attr(data-placeholder)];
+}
+
+.collaboration-caret {
+  position: relative;
+  /* ProseMirror inserts this widget into the paragraph. It must not inherit
+     the paragraph line box: on an otherwise empty line that would make the
+     cursor create a second visual line. */
+  display: inline;
+  width: 0;
+  height: 0;
+  margin-left: -1px;
+  font-size: 0;
+  line-height: 0;
+  vertical-align: baseline;
+  pointer-events: none;
+}
+
+/* A cursor at a block boundary is a direct ProseMirror child. Keep that
+   widget out of the sibling-spacing layout, while inline cursors stay anchored
+   to their exact text position. */
+.notes-prose > .collaboration-caret {
+  position: absolute;
+  margin: 0 0 0 -1px !important;
+}
+
+.collaboration-caret::after {
+  position: absolute;
+  /* Keep these metrics independent from the zero-height widget above. */
+  top: -17px;
+  left: 0;
+  height: 19px;
+  border-left: 2px solid var(--collaborator-color, var(--primary));
+  content: '';
+}
+
+.collaboration-caret__badge {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: 12rem;
+  border: 1px solid color-mix(in oklab, var(--collaborator-color, var(--primary)) 45%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--background) 90%, var(--collaborator-color, var(--primary)) 10%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--foreground) 14%, transparent);
+  padding: 0.18rem 0.42rem 0.18rem 0.2rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.hide-collaborator-names .collaboration-caret__badge {
+  display: none;
+}
+
+.collaboration-status {
+  animation: collaboration-status-in 220ms ease-out both;
+}
+
+.collaboration-caret__avatar {
+  display: grid;
+  width: 1.1rem;
+  height: 1.1rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--collaborator-color, var(--primary));
+  color: var(--primary-foreground);
+  font-size: 0.55rem;
+  font-weight: 700;
+  object-fit: cover;
+}
+
+.collaboration-caret__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collaboration-caret__selection {
+  border-radius: 0.18rem;
+  background: color-mix(in srgb, var(--collaborator-color, var(--primary)) 22%, transparent);
+  animation: collaborator-selection-in 220ms ease-out;
+}
+
+.notes-prose .remote-text-update {
+  animation: remote-text-update 340ms ease-out;
+}
+
+@keyframes collaborator-selection-in {
+  from { background-color: color-mix(in srgb, var(--collaborator-color, var(--primary)) 42%, transparent); }
+  to { background-color: color-mix(in srgb, var(--collaborator-color, var(--primary)) 22%, transparent); }
+}
+
+@keyframes remote-text-update {
+  0% { background-color: color-mix(in srgb, var(--primary) 18%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@keyframes collaboration-status-in {
+  from { opacity: 0; transform: translateY(-0.2rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collaboration-caret__selection,
+  .notes-prose .remote-text-update,
+  .collaboration-status {
+    animation: none;
+  }
 }
 
 .tag-filter-scroll {

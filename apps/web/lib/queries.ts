@@ -1,14 +1,18 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { identityProviderSchema, noteSchema, tagSchema, userSchema, type ChangePassword, type CreateNote, type CreateTag, type LockNote, type Note, type Tag, type UnlockNote, type UpdateNote, type UpdateTag, type UpdateUser, type User } from '@notes/schemas';
+import { collaboratorSchema, identityProviderSchema, noteSchema, profileImageUploadSchema, publicSharedNoteSchema, sharingSettingsSchema, tagSchema, userSchema, usernameSearchResultSchema, type AddCollaborator, type ChangePassword, type CreateNote, type CreateProfileImageUpload, type CreateShareLink, type CreateTag, type LockNote, type Note, type Tag, type UnlockNote, type UpdateCollaborator, type UpdateNote, type UpdateTag, type UpdateUser, type User } from '@notes/schemas';
 import { api, ApiError, unwrap } from '@/lib/api';
 
 export const queryKeys = {
   me: ['me'] as const,
   identityProviders: ['identity-providers'] as const,
   notes: ['notes'] as const,
+  note: (noteId: number) => ['notes', noteId] as const,
   tags: ['tags'] as const,
+  sharing: (noteId: number) => ['notes', noteId, 'sharing'] as const,
+  sharedNote: (token: string) => ['share', token] as const,
+  usernameSearch: (query: string) => ['users', 'search', query] as const,
 };
 
 export function useCurrentUser(enabled = true) {
@@ -31,8 +35,93 @@ export function useNotes() {
   return useQuery({ queryKey: queryKeys.notes, queryFn: async () => noteSchema.array().parse(unwrap(await api.notes.findAll())) });
 }
 
+export function useNote(noteId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.note(noteId ?? 0),
+    queryFn: async () =>
+      noteSchema.parse(unwrap(await api.notes.findOne({ params: { id: noteId! } }))),
+    enabled: noteId !== null,
+    refetchOnMount: 'always',
+    retry: false,
+  });
+}
+
 export function useTags() {
   return useQuery({ queryKey: queryKeys.tags, queryFn: async () => tagSchema.array().parse(unwrap(await api.tags.findAll())) });
+}
+
+export function useSharing(noteId: number | undefined) {
+  return useQuery({
+    queryKey: queryKeys.sharing(noteId ?? 0),
+    queryFn: async () => sharingSettingsSchema.parse(unwrap(await api.notes.getSharing({ params: { id: noteId! } }))),
+    enabled: Boolean(noteId),
+  });
+}
+
+export function useUsernameSearch(query: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.usernameSearch(query),
+    queryFn: async () => usernameSearchResultSchema.array().parse(unwrap(await api.users.searchByUsername({ query: { query } }))),
+    enabled: enabled && query.trim().length >= 2,
+    staleTime: 15_000,
+  });
+}
+
+export function useSharedNote(token: string) {
+  return useQuery({
+    queryKey: queryKeys.sharedNote(token),
+    queryFn: async () => publicSharedNoteSchema.parse(unwrap(await api.shares.getByToken({ params: { token } }))),
+    retry: (count, error) => !(error instanceof ApiError && [401, 403, 404, 410].includes(error.status)) && count < 1,
+  });
+}
+
+export function useCreateShareLink(noteId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateShareLink) => sharingSettingsSchema.parse(unwrap(await api.notes.createShareLink({ params: { id: noteId }, body }))),
+    onSuccess: (settings) => client.setQueryData(queryKeys.sharing(noteId), settings),
+  });
+}
+
+export function useDeleteShareLink(noteId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => sharingSettingsSchema.parse(unwrap(await api.notes.deleteShareLink({ params: { id: noteId } }))),
+    onSuccess: (settings) => client.setQueryData(queryKeys.sharing(noteId), settings),
+  });
+}
+
+export function useAddCollaborator(noteId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: AddCollaborator) => collaboratorSchema.parse(unwrap(await api.notes.addCollaborator({ params: { id: noteId }, body }))),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.sharing(noteId) });
+      client.invalidateQueries({ queryKey: queryKeys.notes });
+    },
+  });
+}
+
+export function useUpdateCollaborator(noteId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, body }: { userId: number; body: UpdateCollaborator }) => collaboratorSchema.parse(unwrap(await api.notes.updateCollaborator({ params: { id: noteId, userId }, body }))),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.sharing(noteId) });
+      client.invalidateQueries({ queryKey: queryKeys.notes });
+    },
+  });
+}
+
+export function useDeleteCollaborator(noteId: number) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: number) => unwrap(await api.notes.deleteCollaborator({ params: { id: noteId, userId } })),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.sharing(noteId) });
+      client.invalidateQueries({ queryKey: queryKeys.notes });
+    },
+  });
 }
 
 export function useCreateNote() {
@@ -71,7 +160,6 @@ export function useUpdateNote() {
     },
     onError: (_error, _variables, context) => client.setQueryData(queryKeys.notes, context?.previous),
     onSuccess: (note) => client.setQueryData<Note[]>(queryKeys.notes, (notes = []) => notes.map((item) => item.id === note.id ? note : item)),
-    onSettled: () => client.invalidateQueries({ queryKey: queryKeys.notes }),
   });
 }
 
@@ -141,5 +229,40 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: async (body: UpdateUser) => userSchema.parse(unwrap(await api.users.updateMe({ body }))),
     onSuccess: (user: User) => client.setQueryData(queryKeys.me, user),
+  });
+}
+
+export function useUploadProfileImage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, onProgress }: { file: File; onProgress?: (percent: number) => void }) => {
+      const contentType = file.type as CreateProfileImageUpload['contentType'];
+      const upload = profileImageUploadSchema.parse(unwrap(await api.users.createProfileImageUpload({ body: { contentType } })));
+      await new Promise<void>((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open('POST', upload.uploadUrl);
+        request.upload.onprogress = (event) => {
+          if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+        };
+        request.onload = () => request.status >= 200 && request.status < 300
+          ? resolve()
+          : reject(new Error('Profile image upload failed.'));
+        request.onerror = () => reject(new Error('Profile image upload failed.'));
+        const form = new FormData();
+        Object.entries(upload.uploadFields).forEach(([name, value]) => form.append(name, value));
+        form.append('file', file);
+        request.send(form);
+      });
+      return userSchema.parse(unwrap(await api.users.completeProfileImageUpload({ body: { key: upload.key } })));
+    },
+    onSuccess: (user) => client.setQueryData(queryKeys.me, user),
+  });
+}
+
+export function useDeleteProfileImage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => userSchema.parse(unwrap(await api.users.deleteProfileImage())),
+    onSuccess: (user) => client.setQueryData(queryKeys.me, user),
   });
 }

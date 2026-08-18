@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownAZ, CalendarArrowDown, Clock3, Search, Plus, Tag as TagIcon } from 'lucide-react';
+import { ArrowDownAZ, CalendarArrowDown, Clock3, Search, Plus, Tag as TagIcon, UserRound, UsersRound } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Note } from '@notes/schemas';
 import { formatDate, formatApiError, toPlainText } from '@/lib/utils';
-import { useDeleteNote, useNotes, useTags } from '@/lib/queries';
+import { useDeleteNote, useNote, useNotes, useTags } from '@/lib/queries';
 import { useUiStore } from '@/lib/store';
 import { NoteEditor } from '@/components/notes/note-editor';
 import { TagManager } from '@/components/tags/tag-manager';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogPrimitive } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { UserAvatar } from '@/components/users/user-avatar';
 
 type SortOption = 'updated-desc' | 'created-desc' | 'title-asc';
 
@@ -36,6 +37,7 @@ export function NotesWorkspace() {
   const [createdFromDraftId, setCreatedFromDraftId] = useState<number | null>(null);
   const [createdNote, setCreatedNote] = useState<Note | null>(null);
   const selectedNoteId = storedSelectedNoteId;
+  const selectedNote = useNote(selectedNoteId);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 1023px)');
@@ -76,7 +78,7 @@ export function NotesWorkspace() {
     const match = !needle || searchableValues.some((value) => value.toLowerCase().includes(needle));
     return match && (tagFilter === null || note.tags.some((tag) => tag.id === tagFilter));
   }), [notes.data, search, tagFilter]);
-  const selected = notes.data?.find((note) => note.id === selectedNoteId)
+  const selected = selectedNote.data ?? notes.data?.find((note) => note.id === selectedNoteId)
     ?? (createdNote?.id === selectedNoteId ? createdNote : null);
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
@@ -87,9 +89,17 @@ export function NotesWorkspace() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      const isTextEditing = target instanceof HTMLElement && (
+        target.isContentEditable ||
+        Boolean(target.closest('[contenteditable="true"]')) ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'INPUT'
+      );
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); startNewNote(); }
-      if (event.key === 'ArrowDown' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index + 1]) openNote(sorted[index + 1].id); }
-      if (event.key === 'ArrowUp' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index - 1]) openNote(sorted[index - 1].id); }
+      if (isTextEditing) return;
+      if (event.key === 'ArrowDown') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index + 1]) openNote(sorted[index + 1].id); }
+      if (event.key === 'ArrowUp') { const index = sorted.findIndex((note) => note.id === selectedNoteId); if (sorted[index - 1]) openNote(sorted[index - 1].id); }
     }
     window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown);
   }, [openNote, selectedNoteId, sorted, startNewNote]);
@@ -111,7 +121,7 @@ export function NotesWorkspace() {
     ? `editor-draft-${draftId}`
     : createdFromDraftId === selected?.id
     ? `editor-draft-${draftId}`
-    : `editor-${selected?.id ?? 'draft'}`;
+    : `editor-${selected?.id ?? 'draft'}-${selectedNote.data?.updatedAt ?? 'cached'}`;
   const notesPanel = <NotesPanel noteCount={notes.data?.length ?? 0} tags={tags.data ?? []} search={search} setSearch={setSearch} tagFilter={tagFilter} setTagFilter={setTagFilter} setSort={setSort} notes={sorted} selectedId={selectedNoteId} pending={notes.isPending} onSelect={openNote} onNew={startNewNote} />;
   const editor = <NoteEditor key={editorTransitionKey} note={selected} onDelete={requestDelete} onBack={closeEditor} onCreated={handleNoteCreated} />;
 
@@ -125,5 +135,5 @@ function NotesPanel({ noteCount, tags, search, setSearch, tagFilter, setTagFilte
 function NotesList({ notes, selectedId, pending, onSelect, onNew }: { notes: Note[]; selectedId: number | null; pending: boolean; onSelect: (id: number) => void; onNew: () => void }) {
   if (pending) return <div className="space-y-2 px-2"><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" /></div>;
   if (!notes.length) return <div className="grid min-h-48 place-items-center px-5 text-center"><div><Search className="text-muted-foreground mx-auto size-5" /><p className="mt-3 text-sm font-medium">No notes found</p><p className="text-muted-foreground mt-1 text-xs">Try another search or start something new.</p><Button className="mt-4" variant="outline" size="sm" onClick={onNew}><Plus /> New note</Button></div></div>;
-  return <AnimatePresence initial={false}>{notes.map((note) => <motion.button layout key={note.id} initial={{ opacity: 0, y: 8, filter: 'blur(3px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }} onClick={() => onSelect(note.id)} className={`mb-1 w-full rounded-md border border-transparent p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${selectedId === note.id ? 'border-border bg-background shadow-xs' : 'hover:bg-accent/70'}`}><div className="flex items-baseline justify-between gap-3"><span className="truncate text-[15px] font-semibold">{note.title}</span><span className="text-muted-foreground shrink-0 text-[10px]">{formatDate(note.updatedAt)}</span></div><p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-5">{note.isLocked ? 'Locked note' : toPlainText(note.content) || 'Empty note'}</p>{note.tags.length > 0 && <div className="mt-2 flex gap-2 overflow-hidden">{note.tags.slice(0, 3).map((tag) => <span key={tag.id} className="text-muted-foreground inline-flex items-center gap-1 truncate text-[10px]"><TagIcon className="size-2.5" />{tag.name}</span>)}</div>}</motion.button>)}</AnimatePresence>;
+  return <AnimatePresence initial={false}>{notes.map((note) => <motion.button layout key={note.id} initial={{ opacity: 0, y: 8, filter: 'blur(3px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.18 }} onClick={() => onSelect(note.id)} className={`mb-1 w-full rounded-md border border-transparent p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${selectedId === note.id ? 'border-border bg-background shadow-xs' : 'hover:bg-accent/70'}`}><div className="flex items-baseline justify-between gap-3"><span className="truncate text-[15px] font-semibold">{note.title}</span><span className="text-muted-foreground shrink-0 text-[10px]">{formatDate(note.updatedAt)}</span></div><p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-5">{note.isLocked ? 'Locked note' : toPlainText(note.content) || 'Empty note'}</p>{note.access.isShared && <div className="mt-2 flex flex-wrap gap-1"><span className="text-muted-foreground inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium"><UsersRound className="size-2.5" />Shared · {note.access.role === 'editor' ? 'Editable' : 'View only'}</span>{note.owner && <span className="text-muted-foreground inline-flex max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium"><UserAvatar name={note.owner.username} imageUrl={note.owner.profileImageUrl} className="size-3.5 shrink-0" /><span className="truncate">Owner · {note.owner.username ?? 'Notes user'}</span></span>}</div>}{note.tags.length > 0 && <div className="mt-2 flex gap-2 overflow-hidden">{note.tags.slice(0, 3).map((tag) => <span key={tag.id} className="text-muted-foreground inline-flex items-center gap-1 truncate text-[10px]"><TagIcon className="size-2.5" />{tag.name}</span>)}</div>}</motion.button>)}</AnimatePresence>;
 }

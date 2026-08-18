@@ -3,7 +3,7 @@ import type { User } from '@notes/schemas';
 
 type UserPayload = Pick<
   PrismaUser,
-  'id' | 'email' | 'username' | 'password' | 'createdAt'
+  'id' | 'email' | 'username' | 'profileImageUrl' | 'password' | 'createdAt'
 >;
 
 export function toUserResponse(user: UserPayload): User {
@@ -11,6 +11,7 @@ export function toUserResponse(user: UserPayload): User {
     id: user.id,
     email: user.email,
     username: user.username,
+    profileImageUrl: user.profileImageUrl,
     hasPassword: Boolean(user.password),
     createdAt: user.createdAt.toISOString(),
   };

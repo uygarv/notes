@@ -7,6 +7,7 @@ const publicRoutes = new Set([
   '/login',
   '/sign-up',
   '/auth/callback',
+  '/share',
   ...(isForgotPasswordEnabled ? passwordResetRoutes : []),
 ]);
 
@@ -20,7 +21,8 @@ export function proxy(request: NextRequest) {
     );
   }
 
-  if (!hasSessionCookie && !publicRoutes.has(pathname)) {
+  const isShareRoute = pathname.startsWith('/share/');
+  if (!hasSessionCookie && !publicRoutes.has(pathname) && !isShareRoute) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('next', `${pathname}${search}`);
     return NextResponse.redirect(loginUrl);

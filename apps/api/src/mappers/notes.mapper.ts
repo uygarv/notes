@@ -1,20 +1,27 @@
 import { Prisma } from '@prisma/client';
-import type { Note } from '@notes/schemas';
+import type { Note, NoteAccess } from '@notes/schemas';
 
 import { toTagResponses } from './tags.mapper';
 
-type NoteWithTags = Prisma.NoteGetPayload<{
+type NoteWithRelations = Prisma.NoteGetPayload<{
   include: {
+    user: { select: { id: true; username: true; profileImageUrl: true } };
     tags: true;
+    collaborators: { include: { user: { select: { id: true; username: true; profileImageUrl: true } } } };
+    shareLink: true;
   };
 }>;
 
-export function toNoteResponse(note: NoteWithTags): Note {
+export function toNoteResponse(note: NoteWithRelations, access: NoteAccess): Note {
   const {
     userId: _,
+    user,
     tags,
     contentEncryptionSalt,
     contentEncryptionIv,
+    collaborators: __,
+    shareLink: ___,
+    collaborationState: ____,
     ...response
   } = note;
 
@@ -23,12 +30,18 @@ export function toNoteResponse(note: NoteWithTags): Note {
     ...(note.isLocked && contentEncryptionSalt && contentEncryptionIv
       ? { contentEncryptionSalt, contentEncryptionIv }
       : {}),
-    tags: toTagResponses(tags),
+    tags: access.role === 'owner' ? toTagResponses(tags) : [],
+    access,
+    ...(access.role !== 'owner' && { owner: user }),
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
   };
 }
 
-export function toNoteResponses(notes: NoteWithTags[]): Note[] {
-  return notes.map(toNoteResponse);
+export function toNoteResponses(
+  notes: NoteWithRelations[],
+  userId: number,
+  accessFor: (note: NoteWithRelations, userId: number) => NoteAccess,
+): Note[] {
+  return notes.map((note) => toNoteResponse(note, accessFor(note, userId)));
 }

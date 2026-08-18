@@ -3,3 +3,5 @@ export * from './lock-note.schema.js';
 export * from './update-note.schema.js';
 
 export * from './note.schema.js';
+export * from './sharing.schema.js';
+export * from './collaboration.schema.js';

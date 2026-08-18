@@ -4,13 +4,15 @@ import { OAuthProfile } from 'src/auth/interfaces/oauth-profile.interface';
 import { OAuthProvider } from 'src/constants';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { ProfileImageService } from './profile-image.service';
 
 import type { UpdateUser } from '@notes/schemas';
 
 @Injectable()
 export class UsersService {
     constructor(
-        private readonly prisma: PrismaService
+        private readonly prisma: PrismaService,
+        private readonly profileImageService: ProfileImageService,
     ) {}
 
     // private because exposes password
@@ -134,6 +136,18 @@ export class UsersService {
         }));
     }
 
+    async searchByUsername(query: string, excludedUserId: number) {
+        return this.prisma.user.findMany({
+            where: {
+                id: { not: excludedUserId },
+                username: { startsWith: query, mode: 'insensitive' },
+            },
+            select: { id: true, username: true, profileImageUrl: true },
+            orderBy: { username: 'asc' },
+            take: 10,
+        }).then((users) => users.flatMap((user) => user.username ? [{ id: user.id, username: user.username, profileImageUrl: user.profileImageUrl }] : []));
+    }
+
     async validateCredentials(email: string, password: string) {
         const user = await this.findByEmail(email);
 
@@ -240,12 +254,20 @@ export class UsersService {
             },
         });
     }
+
+    async setOAuthProfileImageIfEmpty(userId: number, profileImageUrl: string) {
+        await this.prisma.user.updateMany({
+            where: { id: userId, profileImageUrl: null },
+            data: { profileImageUrl },
+        });
+    }
     async createOAuthUser(profile: OAuthProfile) {
-        const { email, provider, providerId } = profile;
+        const { email, provider, providerId, profileImageUrl } = profile;
 
         return this.createWithEmailUsername({
             email,
             password: null,
+            profileImageUrl: profileImageUrl ?? null,
             identities: {
                 create: {
                     provider,
@@ -277,12 +299,38 @@ export class UsersService {
             });
         }
 
-        return this.prisma.identity.create({
+        const identity = await this.prisma.identity.create({
             data: {
                 provider: profile.provider,
                 providerId: profile.providerId,
                 userId,
             },
+        });
+        if (profile.profileImageUrl) {
+            await this.prisma.user.updateMany({
+                where: { id: userId, profileImageUrl: null },
+                data: { profileImageUrl: profile.profileImageUrl },
+            });
+        }
+        return identity;
+    }
+
+    async completeProfileImageUpload(userId: number, key: string) {
+        const profileImageUrl = await this.profileImageService.verifyUpload(userId, key);
+        const user = await this.findById(userId);
+        await this.profileImageService.deleteManagedImage(user.profileImageUrl);
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: { profileImageUrl },
+        });
+    }
+
+    async removeProfileImage(userId: number) {
+        const user = await this.findById(userId);
+        await this.profileImageService.deleteManagedImage(user.profileImageUrl);
+        return this.prisma.user.update({
+            where: { id: userId },
+            data: { profileImageUrl: null },
         });
     }
 }

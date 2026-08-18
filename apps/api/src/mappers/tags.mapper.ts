@@ -1,8 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { Tag, TagWithNotes } from '@notes/schemas';
 
-import { toNoteResponses } from './notes.mapper';
-
 // payloads for both response types
 type TagPayload = Prisma.TagGetPayload<{}>;
 type TagWithNotesPayload = Prisma.TagGetPayload<{
@@ -29,6 +27,18 @@ export function toTagResponses(tags: TagPayload[]): Tag[] {
 export function toTagWithNotesResponse(tag: TagWithNotesPayload): TagWithNotes {
   return {
     ...tag,
-    notes: toNoteResponses(tag.notes),
+    notes: tag.notes.map((note) => ({
+      id: note.id,
+      title: note.title,
+      content: note.content,
+      isLocked: note.isLocked,
+      ...(note.isLocked && note.contentEncryptionSalt && note.contentEncryptionIv
+        ? { contentEncryptionSalt: note.contentEncryptionSalt, contentEncryptionIv: note.contentEncryptionIv }
+        : {}),
+      createdAt: note.createdAt.toISOString(),
+      updatedAt: note.updatedAt.toISOString(),
+      tags: toTagResponses(note.tags),
+      access: { role: 'owner', isShared: false, isCollaborative: Boolean(note.collaborationState) },
+    })),
   };
 }

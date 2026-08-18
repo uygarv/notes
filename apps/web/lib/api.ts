@@ -1,5 +1,5 @@
 import { initClient } from '@ts-rest/core';
-import { authContract, notesContract, tagsContract, usersContract } from '@notes/contracts';
+import { authContract, notesContract, sharesContract, tagsContract, usersContract } from '@notes/contracts';
 import {
   errorMessages,
   errorSchema,
@@ -21,6 +21,7 @@ export const api = {
   notes: initClient(notesContract, clientArgs),
   tags: initClient(tagsContract, clientArgs),
   users: initClient(usersContract, clientArgs),
+  shares: initClient(sharesContract, clientArgs),
 };
 
 export class ApiError extends Error {

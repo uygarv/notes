@@ -4,4 +4,5 @@ export interface OAuthProfile {
   provider: OAuthProvider;
   providerId: string;
   email: string;
+  profileImageUrl?: string;
 }

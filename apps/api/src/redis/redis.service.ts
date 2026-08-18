@@ -40,6 +40,10 @@ export class RedisService implements OnModuleDestroy {
         await this.redis.del(key);
     }
 
+    async publish(channel: string, message: string) {
+        await this.redis.publish(channel, message);
+    }
+
     async onModuleDestroy() {
         await this.redis.quit();
     }

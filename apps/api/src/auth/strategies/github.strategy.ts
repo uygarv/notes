@@ -35,6 +35,7 @@ export class GitHubStrategy
             provider: OAuthProvider.GITHUB,
             providerId: profile.id,
             email,
+            profileImageUrl: profile.photos?.[0]?.value,
         };
     }
 }
