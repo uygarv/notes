@@ -157,29 +157,6 @@ export function RichTextEditor({
       url,
       autoConnect: false,
     });
-    const reportPresence = (
-      states: { clientId: number; user?: Record<string, unknown> }[],
-    ) => {
-      const users = states.flatMap((state) => {
-        if (state.clientId === document.clientID) return [];
-        const user = state.user;
-        return user &&
-          typeof user.id === 'number' &&
-          typeof user.name === 'string'
-          ? [
-              {
-                id: user.id,
-                name: user.name,
-                profileImageUrl:
-                  typeof user.profileImageUrl === 'string'
-                    ? user.profileImageUrl
-                    : null,
-              },
-            ]
-          : [];
-      });
-      onPresenceChange?.(users);
-    };
     const provider = new HocuspocusProvider({
       name: `note:${collaborationNoteId}`,
       document,
@@ -211,16 +188,33 @@ export function RichTextEditor({
           const message = JSON.parse(payload) as {
             type?: unknown;
             removeNote?: unknown;
+            users?: unknown;
           };
           if (message.type === 'access-revoked') {
             onAccessRevoked?.(message.removeNote === true);
+            return;
+          }
+          if (message.type === 'collaboration-presence' && Array.isArray(message.users)) {
+            const users = message.users.flatMap((value) => {
+              if (!value || typeof value !== 'object') return [];
+              const user = value as Record<string, unknown>;
+              if (user.sessionId === provider.sessionId) return [];
+              return typeof user.id === 'number' && typeof user.name === 'string'
+                ? [{
+                    id: user.id,
+                    name: user.name,
+                    profileImageUrl: typeof user.profileImageUrl === 'string'
+                      ? user.profileImageUrl
+                      : null,
+                  }]
+                : [];
+            });
+            onPresenceChange?.(users);
           }
         } catch {
           // Ignore stateless messages that do not belong to this client.
         }
       },
-      onAwarenessUpdate: ({ states }) => reportPresence(states),
-      onAwarenessChange: ({ states }) => reportPresence(states),
     });
     document.on('update', (_update, origin) => {
       if (origin !== provider || !editorRef.current) return;
