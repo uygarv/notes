@@ -149,14 +149,11 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
   const collaborationNoteId = noteId;
   const onPresenceChange = useCallback(
     (users: { id: number; name: string; profileImageUrl?: string | null }[]) => {
-      const otherEditors = users.filter(
-        (user) => user.id !== currentUser.data?.id,
-      );
-      if (otherEditors.length) {
+      if (users.length) {
         if (presenceClearTimer.current)
           clearTimeout(presenceClearTimer.current);
         presenceClearTimer.current = null;
-        setActiveEditors(otherEditors);
+        setActiveEditors(users);
         return;
       }
       if (presenceClearTimer.current) clearTimeout(presenceClearTimer.current);
@@ -165,7 +162,7 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
         presenceClearTimer.current = null;
       }, 1_500);
     },
-    [currentUser.data?.id],
+    [],
   );
   useEffect(
     () => () => {
@@ -350,8 +347,8 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
       lastCreateAttempt.current = serialized;
       createNote.mutate(payload.data, {
         onSuccess: (created) => {
-          clearDraft();
           onCreated(created);
+          clearDraft();
         },
         onError: () => {
           lastCreateAttempt.current = '';
@@ -640,7 +637,6 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
 
   return (
     <motion.section
-      key={note?.id ?? 'draft'}
       initial={{ opacity: 0, y: 14, filter: 'blur(3px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={editorTransition}
@@ -861,8 +857,8 @@ export function NoteEditor({ note, onDelete, onBack, onCreated }: EditorProps) {
           <RichTextEditor
             key={
               note?.access.isCollaborative
-                ? `collaboration-${note.id}-${collaborationOptions?.user.id ?? 'loading'}`
-                : `editor-${note?.id ?? 'draft'}`
+                ? `collaboration-${note.id}`
+                : 'editor'
             }
             content={content}
             onChange={(nextContent) => updateField({ content: nextContent })}

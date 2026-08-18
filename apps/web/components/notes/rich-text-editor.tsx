@@ -198,6 +198,7 @@ export function RichTextEditor({
       },
       onAwarenessUpdate: ({ states }) => {
         const users = states.flatMap((state) => {
+          if (state.clientId === document.clientID) return [];
           const user = state.user;
           return user &&
             typeof user.id === 'number' &&
