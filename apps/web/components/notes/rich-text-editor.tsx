@@ -157,6 +157,29 @@ export function RichTextEditor({
       url,
       autoConnect: false,
     });
+    const reportPresence = (
+      states: { clientId: number; user?: Record<string, unknown> }[],
+    ) => {
+      const users = states.flatMap((state) => {
+        if (state.clientId === document.clientID) return [];
+        const user = state.user;
+        return user &&
+          typeof user.id === 'number' &&
+          typeof user.name === 'string'
+          ? [
+              {
+                id: user.id,
+                name: user.name,
+                profileImageUrl:
+                  typeof user.profileImageUrl === 'string'
+                    ? user.profileImageUrl
+                    : null,
+              },
+            ]
+          : [];
+      });
+      onPresenceChange?.(users);
+    };
     const provider = new HocuspocusProvider({
       name: `note:${collaborationNoteId}`,
       document,
@@ -196,18 +219,8 @@ export function RichTextEditor({
           // Ignore stateless messages that do not belong to this client.
         }
       },
-      onAwarenessUpdate: ({ states }) => {
-        const users = states.flatMap((state) => {
-          if (state.clientId === document.clientID) return [];
-          const user = state.user;
-          return user &&
-            typeof user.id === 'number' &&
-            typeof user.name === 'string'
-            ? [{ id: user.id, name: user.name, profileImageUrl: typeof user.profileImageUrl === 'string' ? user.profileImageUrl : null }]
-            : [];
-        });
-        onPresenceChange?.(users);
-      },
+      onAwarenessUpdate: ({ states }) => reportPresence(states),
+      onAwarenessChange: ({ states }) => reportPresence(states),
     });
     document.on('update', (_update, origin) => {
       if (origin !== provider || !editorRef.current) return;
