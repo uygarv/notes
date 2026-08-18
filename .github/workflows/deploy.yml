@@ -24,6 +24,11 @@ jobs:
             nvm install 22
             nvm use 22
 
+            echo "==> Ensuring PM2 is available for Node $(node --version)"
+            if ! command -v pm2 >/dev/null 2>&1; then
+              npm install --global pm2
+            fi
+
             cd ~/notes
 
             echo "==> Updating source code"
