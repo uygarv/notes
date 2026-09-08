@@ -5,6 +5,8 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -59,7 +61,7 @@ jobs:
 
             echo "==> Cleaning previous builds"
             rm -rf packages/*/dist
-            rm -rf apps/api/dist
+            rm -rf dist
 
             echo "==> Building shared schemas"
             npm run build --workspace=@notes/schemas
@@ -83,20 +85,24 @@ jobs:
             NODE_OPTIONS="--max-old-space-size=768" npm run build --workspace=notes-api
 
             echo "==> Verifying API build"
-            if [ ! -f apps/api/dist/src/main.js ]; then
-              echo "ERROR: apps/api/dist/src/main.js was not generated."
+            if [ ! -f dist/src/main.js ]; then
+              echo "ERROR: dist/src/main.js was not generated."
               exit 1
             fi
 
-            echo "==> Restarting application"
-            pm2 restart notes-api --update-env
+            echo "==> Restarting API"
+            pm2 delete notes-api || true
+            pm2 start dist/src/main.js \
+              --name notes-api \
+              --cwd "$HOME/notes" \
+              --update-env
 
             echo "==> Restarting collaboration service"
-            if pm2 describe notes-collab >/dev/null 2>&1; then
-              pm2 restart notes-collab --update-env
-            else
-              pm2 start dist/src/collaboration/main.js --name notes-collab --cwd apps/api --update-env
-            fi
+            pm2 delete notes-collab || true
+            pm2 start dist/src/collaboration/main.js \
+              --name notes-collab \
+              --cwd "$HOME/notes" \
+              --update-env
 
             echo "==> Waiting for application health check"
             for attempt in $(seq 1 15); do
@@ -131,6 +137,9 @@ jobs:
 
               sleep 2
             done
+
+            echo "==> Saving PM2 process list"
+            pm2 save
 
             echo "==> Cleaning npm cache"
             npm cache clean --force || true
