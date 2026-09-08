@@ -23,6 +23,7 @@ jobs:
 
             export NVM_DIR="$HOME/.nvm"
             source "$NVM_DIR/nvm.sh"
+
             nvm install 22
             nvm use 22
 
@@ -61,7 +62,7 @@ jobs:
 
             echo "==> Cleaning previous builds"
             rm -rf packages/*/dist
-            rm -rf dist
+            rm -rf apps/api/dist
 
             echo "==> Building shared schemas"
             npm run build --workspace=@notes/schemas
@@ -85,23 +86,31 @@ jobs:
             NODE_OPTIONS="--max-old-space-size=768" npm run build --workspace=notes-api
 
             echo "==> Verifying API build"
-            if [ ! -f dist/src/main.js ]; then
-              echo "ERROR: dist/src/main.js was not generated."
+            if [ ! -f apps/api/dist/src/main.js ]; then
+              echo "ERROR: apps/api/dist/src/main.js was not generated."
+              exit 1
+            fi
+
+            echo "==> Verifying collaboration build"
+            if [ ! -f apps/api/dist/src/collaboration/main.js ]; then
+              echo "ERROR: apps/api/dist/src/collaboration/main.js was not generated."
               exit 1
             fi
 
             echo "==> Restarting API"
             pm2 delete notes-api || true
+
             pm2 start dist/src/main.js \
               --name notes-api \
-              --cwd "$HOME/notes" \
+              --cwd "$HOME/notes/apps/api" \
               --update-env
 
             echo "==> Restarting collaboration service"
             pm2 delete notes-collab || true
+
             pm2 start dist/src/collaboration/main.js \
               --name notes-collab \
-              --cwd "$HOME/notes" \
+              --cwd "$HOME/notes/apps/api" \
               --update-env
 
             echo "==> Waiting for application health check"
@@ -145,4 +154,5 @@ jobs:
             npm cache clean --force || true
 
             echo "==> Deployment successful"
+            pm2 list
             df -h /
